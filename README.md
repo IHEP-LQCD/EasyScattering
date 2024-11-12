@@ -7,6 +7,7 @@
     - **Reimann Zeta funtion** (not complete).
     - **Coupled-Channel Parametrization**.
     - **getting `chi2`.**
+    - **getting model-prediction energy levels. **
 
 ## Getting Started
 ```bash
@@ -22,5 +23,5 @@ This project are build at very early stage. Welcome to build it together.
 
 
 ## TODO:
-    - coupled-channel parametiration tunning.
-    - higher partral wave mixing effect.
+    - coupled-channel parametrization tuning.
+    - higher partial wave mixing effect.
