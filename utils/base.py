@@ -82,30 +82,79 @@ class ScatteringMatrixForm(ABC, Analyticity):
     @abstractmethod
     def get_K_inv_matrix(self, s): ...
 
-    def get_t_inv_matrix(self, s):
-        return self.get_K_inv_matrix(s) + self.chew_madstem.get_chew_madstem_matrix(s)
+    def get_t_inv_matrix(self, s, m1_A, m1_B, m2_A, m2_B):
+        return self.get_K_inv_matrix(s) + self.chew_madstem.get_chew_madstem_matrix(
+            s, m1_A, m1_B, m2_A, m2_B
+        )
 
-    def get_t_matrix(self, s):
-        return np.linalg.inv(self.get_t_inv_matrix(s))
+    def get_t_matrix(self, s, m1_A, m1_B, m2_A, m2_B):
+        return np.linalg.inv(self.get_t_inv_matrix(s, m1_A, m1_B, m2_A, m2_B))
 
     def get_S_matrix(self, s, m1_A, m1_B, m2_A, m2_B):
-        rho_sqrt = np.diag(
-            (
-                self.sqrt_vectorized(self.rho(s, m1_A, m1_B)),
-                self.sqrt_vectorized(self.rho(s, m2_A, m2_B)),
+        def get_S_matrix_fcn(s0):
+            rho_sqrt = np.diag(
+                (
+                    self.sqrt_vectorized(self.rho(s0, m1_A, m1_B)),
+                    self.sqrt_vectorized(self.rho(s0, m2_A, m2_B)),
+                )
             )
-        )
-        return np.identity(2) - 2j * rho_sqrt @ self.get_t_matrix(s) @ rho_sqrt
+            ret =  (
+                np.identity(2)
+                - 2j
+                * rho_sqrt
+                @ self.get_t_matrix(s0, m1_A, m1_B, m2_A, m2_B)[0]
+                @ rho_sqrt
+            )
+            return ret
+
+        if isinstance(s, np.ndarray):
+            S_matrix = np.array([get_S_matrix_fcn(s0) for s0 in s])
+        else:
+            S_matrix = get_S_matrix_fcn(s)
+        return S_matrix
 
     @staticmethod
     def get_phase_from_S_matrix(S_matrix):
         """
         extract parameters delta1, eta1, delta2, eta2 from S matrix.
         """
-        delta1 = np.angle(S_matrix[0, 0], deg=True) / 2 % 180
+
+        delta1 = (np.angle(S_matrix[0, 0], deg=True)) / 2 % 180
+        delta2 = (np.angle(S_matrix[1, 1], deg=True)) / 2 % 180
         eta1 = np.abs(S_matrix[0, 0])
-        delta2 = np.angle(S[1, 1], deg=True) / 2 % 180
         eta2 = np.abs(S_matrix[1, 1])
         # print(f"phase1 = {delta1}, eta1 = {eta1}")
         # print(f"phase2 = {delta2}, eta2 = {eta2}")
         return delta1, eta1, delta2, eta2
+
+    @staticmethod
+    def plot_phase(S_matrix_array, x):
+        delta1, eta1, delta2, eta2 = (
+            np.zeros_like(x),
+            np.zeros_like(x),
+            np.zeros_like(x),
+            np.zeros_like(x),
+        )
+        for i, s in enumerate(S_matrix_array):
+            if i == 5000:
+                print(s)
+                # exit()
+            delta1[i], eta1[i], delta2[i], eta2[i] = (
+                ScatteringMatrixForm.get_phase_from_S_matrix(s)
+            )
+        print(s)
+        exit()
+        import matplotlib.pyplot as plt
+
+        plt.plot(x, delta1, "bx", label="delta1")
+        plt.plot(x, delta2, "rx", label="delta2")
+        plt.legend()
+        plt.show()
+        plt.clf()
+
+        plt.plot(x, eta1, "bx", label="eta1")
+        plt.plot(x, eta2, "rx", label="eta2")
+        plt.ylim(0, 1.2)
+        plt.legend()
+        plt.show()
+        plt.clf()

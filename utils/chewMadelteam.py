@@ -1,13 +1,19 @@
 import numpy as np
 import cmath
-from .base import ChewMadelstemForm
+from .base import ChewMadelstemForm, Analyticity
 
-class ChewMadelstemZero(ChewMadelstemForm):
+class ChewMadelstemZero(ChewMadelstemForm, Analyticity):
     """
     A zero Chew-Madelstem variable.
     """
-    def get_chew_madstem_matrix(self, s):
-        return 0
+    def get_chew_madstem_matrix(self, s, m1_A, m1_B, m2_A, m2_B):
+        def get_chew_madstem_matrix_fcn(s0, m1_A, m1_B, m2_A, m2_B):
+            return -1j * np.diag([self.rho(s0, m1_A, m1_B), self.rho(s, m2_A, m2_B)])
+        if isinstance(s, np.ndarray):
+            ret = np.array([get_chew_madstem_matrix_fcn(s0, m1_A, m1_B, m2_A, m2_B) for s0 in s])
+        else:
+            ret = get_chew_madstem_matrix_fcn(s, m1_A, m1_B, m2_A, m2_B)
+        return ret
 
 class ChewMadelstemEqualMass(ChewMadelstemForm):
     """

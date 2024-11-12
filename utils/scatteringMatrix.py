@@ -24,7 +24,10 @@ class KMatraixSumOfPoles(ScatteringMatrixForm):
             return 1 / ((p["M^2"] - s0)) * g + gamma
 
         # K_matrix = (np.vectorize(K_matrix_fcn))(s)
-        K_matrix = np.array([K_matrix_fcn(s0) for s0 in s])
+        if isinstance(s, np.ndarray):
+            K_matrix = np.array([K_matrix_fcn(s0) for s0 in s])
+        else:
+            K_matrix = K_matrix_fcn(s)
         # print(K_matrix)
         return K_matrix
 
