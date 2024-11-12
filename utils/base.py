@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+import warnings
 import numpy as np
 import cmath
 
@@ -26,6 +27,19 @@ class Analyticity:
         k2 = (s - (m_A - m_B) ** 2) * (s - (m_A + m_B) ** 2) / 4 / s
         return k2
 
+    @staticmethod
+    def check_unitarity(s, S_matrix):
+        """
+        check unitarity of S matrix.
+        """
+        isunitary =  (np.allclose(
+            S_matrix @ S_matrix.conj().T, np.identity(2)
+        ) and np.allclose(S_matrix.conj().T @ S_matrix, np.identity(2))
+        )
+        if not isunitary:
+            warnings.warn(f"at sqrts = {s**.5}, S matrix not unitary: {S_matrix.conj().T @ S_matrix}\n{S_matrix @ S_matrix.conj().T}", Warning)
+        return isunitary
+
     def scattering_mom(self, s, m_A, m_B):
         """
         get scattering momemtum k under right hand sqrt.
@@ -38,6 +52,26 @@ class Analyticity:
         define rho(s)
         """
         k = self.scattering_mom(s, m_A, m_B)
+        return 2 * k / self.sqrt_vectorized(s)
+    
+    def rho_matrix(self, s, m1_A, m1_B, m2_A, m2_B):
+        """
+        define rho(s) 2 by 2 matrix.
+        """
+        def get_rho_matrix_fcn(s0, m1_A, m1_B, m2_A, m2_B):
+            return np.diag([self.rho(s0, m1_A, m1_B),
+                                  self.rho(s0, m2_A, m2_B)])
+        if isinstance(s, np.ndarray):
+            rho_matrix = np.array([get_rho_matrix_fcn(s0, m1_A, m1_B, m2_A, m2_B) for s0 in s])
+        else:
+            rho_matrix = get_rho_matrix_fcn(s, m1_A, m1_B, m2_A, m2_B)
+        return rho_matrix
+
+    def rho_heviside(self, s, m_A, m_B):
+        """
+        define rho(s) Theta(s - (m_A + m_B)^2 > 0)
+        """
+        k = self.scattering_mom(s, m_A, m_B).real
         return 2 * k / self.sqrt_vectorized(s)
 
 
@@ -69,9 +103,9 @@ class ScatteringMatrixForm(ABC, Analyticity):
     Inherit this class to define your scattering matrix form of K matrix or K inv.
     """
 
-    def __init__(self, p, chew_madstem: ChewMadelstemForm):
-        self.set_parameters(p)
+    def __init__(self, chew_madstem: ChewMadelstemForm):
         self.chew_madstem = chew_madstem
+        self._p = None
 
     def set_parameters(self, p):
         self._p = p
@@ -83,35 +117,52 @@ class ScatteringMatrixForm(ABC, Analyticity):
     def get_K_inv_matrix(self, s): ...
 
     def get_t_inv_matrix(self, s, m1_A, m1_B, m2_A, m2_B):
+        if self._p is None:
+            raise ValueError("parameters not set, please set_parameters(para) before.")
         return self.get_K_inv_matrix(s) + self.chew_madstem.get_chew_madstem_matrix(
             s, m1_A, m1_B, m2_A, m2_B
         )
 
     def get_t_matrix(self, s, m1_A, m1_B, m2_A, m2_B):
+        if self._p is None:
+            raise ValueError("parameters not set, please set_parameters(para) before.")
         return np.linalg.inv(self.get_t_inv_matrix(s, m1_A, m1_B, m2_A, m2_B))
 
-    def get_S_matrix(self, s, m1_A, m1_B, m2_A, m2_B):
+    def get_S_matrix_from_t(self, s, m1_A, m1_B, m2_A, m2_B):
         def get_S_matrix_fcn(s0):
             rho_sqrt = np.diag(
-                (
+                [
                     self.sqrt_vectorized(self.rho(s0, m1_A, m1_B)),
                     self.sqrt_vectorized(self.rho(s0, m2_A, m2_B)),
-                )
+                ]
             )
-            ret =  (
+            S_matrix_ret = (
                 np.identity(2)
                 - 2j
                 * rho_sqrt
-                @ self.get_t_matrix(s0, m1_A, m1_B, m2_A, m2_B)[0]
+                @ self.get_t_matrix(s0, m1_A, m1_B, m2_A, m2_B)
                 @ rho_sqrt
             )
-            return ret
+            # self.check_unitarity(s, S_matrix_ret)
+            return S_matrix_ret
 
         if isinstance(s, np.ndarray):
             S_matrix = np.array([get_S_matrix_fcn(s0) for s0 in s])
         else:
             S_matrix = get_S_matrix_fcn(s)
         return S_matrix
+
+    def get_S_matrix_from_K(self, s):
+        def get_S_matrix_fcn(s0):
+            K = self.get_K_matrix(s0)
+            S_matrix_ret = (np.identity(2) +1j *K) * np.linalg.inv(np.identity(2)  - 1j *K)
+            return S_matrix_ret
+        if isinstance(s, np.ndarray):
+            S_matrix = np.array([get_S_matrix_fcn(s0) for s0 in s])
+        else:
+            S_matrix = get_S_matrix_fcn(s)
+        return S_matrix
+
 
     @staticmethod
     def get_phase_from_S_matrix(S_matrix):
@@ -143,7 +194,7 @@ class ScatteringMatrixForm(ABC, Analyticity):
                 ScatteringMatrixForm.get_phase_from_S_matrix(s)
             )
         print(s)
-        exit()
+        # exit()
         import matplotlib.pyplot as plt
 
         plt.plot(x, delta1, "bx", label="delta1")

@@ -33,7 +33,7 @@ def main():
     s = np.array([3.9, 4.0]) **2
     determinant = calculator.get_luescher_determint(s, m1_A=m1_A, m1_B=m1_B, m2_A=m2_A, m2_B=m2_B)
     print(determinant)
-    calculator.scattering_matrix.get_S_matrix(s, m1_A=m1_A, m1_B=m1_B, m2_A=m2_A, m2_B=m2_B)
+    calculator.scattering_matrix.get_S_matrix_from_t(s, m1_A=m1_A, m1_B=m1_B, m2_A=m2_A, m2_B=m2_B)
     exit()
 
 if __name__ == "__main__":

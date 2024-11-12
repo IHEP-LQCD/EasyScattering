@@ -2,6 +2,7 @@ import numpy as np
 import cmath
 from math import fsum
 from scipy.interpolate import interp1d
+import warnings
 import os
 
 from time import perf_counter
@@ -38,7 +39,7 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         Q=[0, 0, 0],
         gamma: float = 1.0,
         cut: int = 30,
-        aspect_ratio=5.3,
+        xi_0=None,
         cache_file_dir: str = "./cache/",
     ) -> None:
         self.Ls = Ls
@@ -49,7 +50,10 @@ class ScatteringDoubleChannelCalculator(Analyticity):
 
         self.gamma = gamma
         # self.at_inv_GeV = 6.894
-        self.aspect_ratio = aspect_ratio
+        if xi_0 is None:
+            xi_0 = 1.0
+            warnings.warn("aspect_ratio xi_0 is not set, use default 1.0.", UserWarning)
+        self.xi_0 = xi_0
 
         self.cut = cut if cut >= 30 else 30
         self.q2_begin = -1.0001
@@ -101,7 +105,7 @@ class ScatteringDoubleChannelCalculator(Analyticity):
                     if tmp < cut**2:
                         ret += 1 / (tmp - q2)
         ret -= 4 * np.pi * cut
-        return ret / (self.Ls * np.pi) / (1 / self.aspect_ratio)
+        return ret / (self.Ls * np.pi) / (1 / self.xi_0)
 
     def set_scattering_matrix(self, form: ScatteringMatrixForm):
         """
@@ -146,8 +150,8 @@ class ScatteringDoubleChannelCalculator(Analyticity):
 
         # dimensionless: q2 = (k * L / 2 / np.pi) ** 2
         # a_s = aspect_ratio * a_t = aspect_ratio / at_inv_GeV
-        q_square_1 = self.scattering_mom2(s, m1_A, m1_B) * (self.aspect_ratio / 2/ np.pi)**2
-        q_square_2 = self.scattering_mom2(s, m2_A, m2_B) * (self.aspect_ratio / 2/ np.pi)**2
+        q_square_1 = self.scattering_mom2(s, m1_A, m1_B) * (self.xi_0 / 2/ np.pi)**2
+        q_square_2 = self.scattering_mom2(s, m2_A, m2_B) * (self.xi_0 / 2/ np.pi)**2
         rho_M0000_1 = 2 / np.vectorize(cmath.sqrt)(s) *  self.kM0000_simpified(q_square_1)
         rho_M0000_2 = 2 / np.vectorize(cmath.sqrt)(s) *  self.kM0000_simpified(q_square_2)
         return np.linalg.det(K_inv - np.diag((rho_M0000_1, rho_M0000_2)))
