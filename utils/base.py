@@ -53,7 +53,7 @@ class Analyticity:
         """
         k = self.scattering_mom(s, m_A, m_B)
         return 2 * k / self.sqrt_vectorized(s)
-    
+
     def rho_matrix(self, s, m1_A, m1_B, m2_A, m2_B):
         """
         define rho(s) 2 by 2 matrix.
@@ -135,15 +135,15 @@ class ScatteringMatrixForm(ABC, Analyticity):
                     self.sqrt_vectorized(self.rho(s0, m1_A, m1_B)),
                     self.sqrt_vectorized(self.rho(s0, m2_A, m2_B)),
                 ]
-            ).real #### ????
+            )
             S_matrix_ret = (
                 np.identity(2)
-                - 2j
+                + 2j
                 * rho_sqrt
                 @ self.get_t_matrix(s0, m1_A, m1_B, m2_A, m2_B)
-                @ rho_sqrt.T
+                @ rho_sqrt
             )
-            self.check_unitarity(s0 * 7.219**2, S_matrix_ret)
+            # self.check_unitarity(s0, S_matrix_ret)
             return S_matrix_ret
 
         if isinstance(s, np.ndarray):

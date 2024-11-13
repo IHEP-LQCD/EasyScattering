@@ -25,16 +25,19 @@ def main():
     k_matrix_parameterization.set_parameters(p)
     calculator.set_scattering_matrix(k_matrix_parameterization)
 
+    # for eaxmple, print the t matrix, tinverse matrix and S matrix.
     sqrt_s_GEV = np.linspace(5.5, 7.0, 15)
     s = (sqrt_s_GEV / at_inv) ** 2
     t_inv = calculator.scattering_matrix.get_t_inv_matrix(
         s, m1_A=m1_a, m1_B=m1_b, m2_A=m2_a, m2_B=m2_b
     )
+
+    # check the t_inv.imag == -rho
     assert np.allclose(t_inv.imag, -calculator.rho_matrix(s, m1_a, m1_b, m2_a, m2_b).real)
 
     # assert np.allclose( - 1j*(t_inv - t_inv.conj()), 2 * calculator.rho_matrix(s, m1_a, m1_b, m2_a, m2_b))
     print( 1j*(t_inv - t_inv.conj()) + calculator.rho_matrix(s, m1_a, m1_b, m2_a, m2_b))
-    exit()
+    # exit()
     print("tinv = \n", t_inv)
 
     t = calculator.scattering_matrix.get_t_matrix(
@@ -47,7 +50,7 @@ def main():
     )
     print("S = \n", S)
 
-
+    # plot the phase shift
     sqrt_s_GEV = np.linspace(5.5, 7.0, 10000)
     s = (sqrt_s_GEV / at_inv) ** 2
 
