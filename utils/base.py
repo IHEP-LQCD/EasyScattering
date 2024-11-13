@@ -37,7 +37,7 @@ class Analyticity:
         ) and np.allclose(S_matrix.conj().T @ S_matrix, np.identity(2))
         )
         if not isunitary:
-            warnings.warn(f"at sqrts = {s**.5}, S matrix not unitary: {S_matrix.conj().T @ S_matrix}\n{S_matrix @ S_matrix.conj().T}", Warning)
+            warnings.warn(f"at sqrts = {s**.5}, S matrix not unitary:\n SdagS =\n {S_matrix.conj().T @ S_matrix}\n SSdag=\n{S_matrix @ S_matrix.conj().T}", Warning)
         return isunitary
 
     def scattering_mom(self, s, m_A, m_B):
@@ -135,15 +135,15 @@ class ScatteringMatrixForm(ABC, Analyticity):
                     self.sqrt_vectorized(self.rho(s0, m1_A, m1_B)),
                     self.sqrt_vectorized(self.rho(s0, m2_A, m2_B)),
                 ]
-            )
+            ).real #### ????
             S_matrix_ret = (
                 np.identity(2)
                 - 2j
                 * rho_sqrt
                 @ self.get_t_matrix(s0, m1_A, m1_B, m2_A, m2_B)
-                @ rho_sqrt
+                @ rho_sqrt.T
             )
-            # self.check_unitarity(s, S_matrix_ret)
+            self.check_unitarity(s0 * 7.219**2, S_matrix_ret)
             return S_matrix_ret
 
         if isinstance(s, np.ndarray):
@@ -187,13 +187,10 @@ class ScatteringMatrixForm(ABC, Analyticity):
             np.zeros_like(x),
         )
         for i, s in enumerate(S_matrix_array):
-            if i == 5000:
-                print(s)
-                # exit()
             delta1[i], eta1[i], delta2[i], eta2[i] = (
                 ScatteringMatrixForm.get_phase_from_S_matrix(s)
             )
-        print(s)
+        # print(s)
         # exit()
         import matplotlib.pyplot as plt
 
