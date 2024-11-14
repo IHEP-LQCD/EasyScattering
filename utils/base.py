@@ -143,7 +143,7 @@ class ScatteringMatrixForm(ABC, Analyticity):
                 @ self.get_t_matrix(s0, m1_A, m1_B, m2_A, m2_B)
                 @ rho_sqrt
             )
-            # self.check_unitarity(s0, S_matrix_ret)
+            self.check_unitarity(s0, S_matrix_ret)
             return S_matrix_ret
 
         if isinstance(s, np.ndarray):
@@ -202,6 +202,20 @@ class ScatteringMatrixForm(ABC, Analyticity):
 
         plt.plot(x, eta1, "bx", label="eta1")
         plt.plot(x, eta2, "rx", label="eta2")
+        plt.ylim(0, 1.2)
+        plt.legend()
+        plt.show()
+        plt.clf()
+
+    def plot_rhot_square(self, s_array, m1_A, m1_B, m2_A, m2_B, x):
+        t_matrix = self.get_t_matrix(s_array, m1_A, m1_B, m2_A, m2_B)
+        rho_sqrt_matrix = self.sqrt_vectorized(self.rho_matrix(s_array, m1_A, m1_B, m2_A, m2_B))
+        rhot_square = np.abs(rho_sqrt_matrix @ t_matrix @ rho_sqrt_matrix)**2
+
+        import matplotlib.pyplot as plt
+
+        plt.plot(x, rhot_square[:, 0, 0], "bx", label="|T|^2")
+        plt.plot(x, rhot_square[:, 1, 1], "rx", label="|T|^2")
         plt.ylim(0, 1.2)
         plt.legend()
         plt.show()

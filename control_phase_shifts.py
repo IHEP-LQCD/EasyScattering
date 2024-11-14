@@ -62,6 +62,8 @@ def main():
 
     # phase = calculator.scattering_matrix.get_phase_from_S_matrix(s_matrix)
     calculator.scattering_matrix.plot_phase(s_matrix, sqrt_s_GEV)
+
+    calculator.scattering_matrix.plot_rhot_square(s, m1_a, m1_b, m2_a, m2_b, sqrt_s_GEV)
     exit()
 
 
