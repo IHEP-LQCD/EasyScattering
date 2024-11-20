@@ -9,7 +9,6 @@ def main():
 
     # calculator.plot_zeta_function(calculator.M0000)
 
-    chew_madelstem = ChewMadelstemZero()
     p = {
         "g1": 0.1,
         "g2": 0.2,
@@ -25,7 +24,7 @@ def main():
     m1_B = 2.020 / at_inv
     m2_A = 3.099 / at_inv
     m2_B = 0.348 / at_inv
-    k_matrix_parameterization = KMatraixSumOfPoles(chew_madelstem)
+    k_matrix_parameterization = KMatraixSumOfPoles(ChewMadelstemZero())
     k_matrix_parameterization.set_parameters(p)
     calculator.set_scattering_matrix(k_matrix_parameterization)
 

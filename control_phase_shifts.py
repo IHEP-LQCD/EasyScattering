@@ -5,7 +5,9 @@ import numpy as np
 
 def main():
     at_inv = 7.219
-    calculator = ScatteringDoubleChannelCalculator(Ls=16, Q=np.ones(3) * 0.0, cut=30, xi_0=5.0)
+    calculator = ScatteringDoubleChannelCalculator(
+        Ls=16, Q=np.ones(3) * 0.0, cut=30, xi_0=5.0
+    )
 
     p = {
         "g1": 1.5467876391135578 / at_inv,
@@ -26,31 +28,45 @@ def main():
     # for eaxmple, print the t matrix, tinverse matrix and S matrix.
     sqrt_s_GEV = np.linspace(5.5, 7.0, 15)
     s = (sqrt_s_GEV / at_inv) ** 2
-    t_inv = calculator.scattering_matrix.get_t_inv_matrix(s, m1_A=m1_a, m1_B=m1_b, m2_A=m2_a, m2_B=m2_b)
+    t_inv = calculator.scattering_matrix.get_t_inv_matrix(
+        s, m1_A=m1_a, m1_B=m1_b, m2_A=m2_a, m2_B=m2_b
+    )
 
     # check the t_inv.imag == -rho
-    assert np.allclose(t_inv.imag, -calculator.rho_matrix(s, m1_a, m1_b, m2_a, m2_b).real)
+    assert np.allclose(
+        t_inv.imag, -calculator.rho_matrix(s, m1_a, m1_b, m2_a, m2_b).real
+    )
 
     # assert np.allclose( - 1j*(t_inv - t_inv.conj()), 2 * calculator.rho_matrix(s, m1_a, m1_b, m2_a, m2_b))
-    print(1j * (t_inv - t_inv.conj()) + calculator.rho_matrix(s, m1_a, m1_b, m2_a, m2_b))
+    print(
+        1j * (t_inv - t_inv.conj()) + calculator.rho_matrix(s, m1_a, m1_b, m2_a, m2_b)
+    )
     # exit()
     print("tinv = \n", t_inv)
 
-    t = calculator.scattering_matrix.get_t_matrix(s, m1_A=m1_a, m1_B=m1_b, m2_A=m2_a, m2_B=m2_b)
+    t = calculator.scattering_matrix.get_t_matrix(
+        s, m1_A=m1_a, m1_B=m1_b, m2_A=m2_a, m2_B=m2_b
+    )
     print("t = \n", t)
 
-    S = calculator.scattering_matrix.get_S_matrix_from_t(s, m1_A=m1_a, m1_B=m1_b, m2_A=m2_a, m2_B=m2_b)
+    S = calculator.scattering_matrix.get_S_matrix_from_t(
+        s, m1_A=m1_a, m1_B=m1_b, m2_A=m2_a, m2_B=m2_b
+    )
     print("S = \n", S)
+
 
     # plot the phase shift
     sqrt_s_GEV = np.linspace(5.5, 7.0, 10000)
     s = (sqrt_s_GEV / at_inv) ** 2
 
+
     determinant = calculator.get_luescher_determint(s, m1_A=m1_a, m1_B=m1_b, m2_A=m2_a, m2_B=m2_b)
     calculator.plot_luescher_determint(s, m1_a, m1_b, m2_a, m2_b, sqrt_s_GEV)
     exit()
 
-    s_matrix = calculator.scattering_matrix.get_S_matrix_from_t(s, m1_A=m1_a, m1_B=m1_b, m2_A=m2_a, m2_B=m2_b)
+    s_matrix = calculator.scattering_matrix.get_S_matrix_from_t(
+        s, m1_A=m1_a, m1_B=m1_b, m2_A=m2_a, m2_B=m2_b
+    )
 
     # s_matrix = calculator.scattering_matrix.get_S_matrix_from_K(s)
 
