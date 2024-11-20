@@ -32,12 +32,14 @@ class Analyticity:
         """
         check unitarity of S matrix.
         """
-        isunitary =  (np.allclose(
-            S_matrix @ S_matrix.conj().T, np.identity(2)
-        ) and np.allclose(S_matrix.conj().T @ S_matrix, np.identity(2))
+        isunitary = np.allclose(S_matrix @ S_matrix.conj().T, np.identity(2)) and np.allclose(
+            S_matrix.conj().T @ S_matrix, np.identity(2)
         )
         if not isunitary:
-            warnings.warn(f"at sqrts = {s**.5}, S matrix not unitary:\n SdagS =\n {S_matrix.conj().T @ S_matrix}\n SSdag=\n{S_matrix @ S_matrix.conj().T}", Warning)
+            warnings.warn(
+                f"at sqrts = {s**.5}, S matrix not unitary:\n SdagS =\n {S_matrix.conj().T @ S_matrix}\n SSdag=\n{S_matrix @ S_matrix.conj().T}",
+                Warning,
+            )
         return isunitary
 
     def scattering_mom(self, s, m_A, m_B):
@@ -58,9 +60,10 @@ class Analyticity:
         """
         define rho(s) 2 by 2 matrix.
         """
+
         def get_rho_matrix_fcn(s0, m1_A, m1_B, m2_A, m2_B):
-            return np.diag([self.rho(s0, m1_A, m1_B),
-                                  self.rho(s0, m2_A, m2_B)])
+            return np.diag([self.rho(s0, m1_A, m1_B), self.rho(s0, m2_A, m2_B)])
+
         if isinstance(s, np.ndarray):
             rho_matrix = np.array([get_rho_matrix_fcn(s0, m1_A, m1_B, m2_A, m2_B) for s0 in s])
         else:
@@ -119,9 +122,7 @@ class ScatteringMatrixForm(ABC, Analyticity):
     def get_t_inv_matrix(self, s, m1_A, m1_B, m2_A, m2_B):
         if self._p is None:
             raise ValueError("parameters not set, please set_parameters(para) before.")
-        return self.get_K_inv_matrix(s) + self.chew_madstem.get_chew_madstem_matrix(
-            s, m1_A, m1_B, m2_A, m2_B
-        )
+        return self.get_K_inv_matrix(s) + self.chew_madstem.get_chew_madstem_matrix(s, m1_A, m1_B, m2_A, m2_B)
 
     def get_t_matrix(self, s, m1_A, m1_B, m2_A, m2_B):
         if self._p is None:
@@ -136,13 +137,7 @@ class ScatteringMatrixForm(ABC, Analyticity):
                     self.sqrt_vectorized(self.rho(s0, m2_A, m2_B)),
                 ]
             )
-            S_matrix_ret = (
-                np.identity(2)
-                + 2j
-                * rho_sqrt
-                @ self.get_t_matrix(s0, m1_A, m1_B, m2_A, m2_B)
-                @ rho_sqrt
-            )
+            S_matrix_ret = np.identity(2) + 2j * rho_sqrt @ self.get_t_matrix(s0, m1_A, m1_B, m2_A, m2_B) @ rho_sqrt
             self.check_unitarity(s0, S_matrix_ret)
             return S_matrix_ret
 
@@ -155,14 +150,14 @@ class ScatteringMatrixForm(ABC, Analyticity):
     def get_S_matrix_from_K(self, s):
         def get_S_matrix_fcn(s0):
             K = self.get_K_matrix(s0)
-            S_matrix_ret = (np.identity(2) +1j *K) * np.linalg.inv(np.identity(2)  - 1j *K)
+            S_matrix_ret = (np.identity(2) + 1j * K) * np.linalg.inv(np.identity(2) - 1j * K)
             return S_matrix_ret
+
         if isinstance(s, np.ndarray):
             S_matrix = np.array([get_S_matrix_fcn(s0) for s0 in s])
         else:
             S_matrix = get_S_matrix_fcn(s)
         return S_matrix
-
 
     @staticmethod
     def get_phase_from_S_matrix(S_matrix):
@@ -187,9 +182,7 @@ class ScatteringMatrixForm(ABC, Analyticity):
             np.zeros_like(x),
         )
         for i, s in enumerate(S_matrix_array):
-            delta1[i], eta1[i], delta2[i], eta2[i] = (
-                ScatteringMatrixForm.get_phase_from_S_matrix(s)
-            )
+            delta1[i], eta1[i], delta2[i], eta2[i] = ScatteringMatrixForm.get_phase_from_S_matrix(s)
         # print(s)
         # exit()
         import matplotlib.pyplot as plt
@@ -210,7 +203,7 @@ class ScatteringMatrixForm(ABC, Analyticity):
     def plot_rhot_square(self, s_array, m1_A, m1_B, m2_A, m2_B, x):
         t_matrix = self.get_t_matrix(s_array, m1_A, m1_B, m2_A, m2_B)
         rho_sqrt_matrix = self.sqrt_vectorized(self.rho_matrix(s_array, m1_A, m1_B, m2_A, m2_B))
-        rhot_square = np.abs(rho_sqrt_matrix @ t_matrix @ rho_sqrt_matrix)**2
+        rhot_square = np.abs(rho_sqrt_matrix @ t_matrix @ rho_sqrt_matrix) ** 2
 
         import matplotlib.pyplot as plt
 

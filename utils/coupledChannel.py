@@ -58,19 +58,17 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         self.cut = cut if cut >= 30 else 30
         self.q2_begin = -1.0001
         self.q2_end = 9.0001
-        self.q2_density = 100000  # 2**17
+        self.q2_density = 2**17  # 131072
         self.cache_file_dir = cache_file_dir
         if not os.path.exists(cache_file_dir):
             os.makedirs(cache_file_dir)
         # self.fcn_M = self.factory_matrix_M(0, 0, 0, 0)
-        self.init_M0000_cache()
+        self.init_kM0000_cache()
 
-    def init_M0000_cache(self):
+    def init_kM0000_cache(self):
         cache_file_name = f"{self.cache_file_dir}/cache_{self.q2_begin}_{self.q2_end}_{self.q2_density}_{self.cut}.npy"
         s = perf_counter()
-        self.zeta_x = np.linspace(
-            self.q2_begin, self.q2_end, self.q2_density, dtype="f8"
-        )
+        self.zeta_x = np.linspace(self.q2_begin, self.q2_end, self.q2_density, dtype="f8")
         if os.path.exists(cache_file_name):
             self.zeta_y = np.load(cache_file_name)
         else:
@@ -78,18 +76,15 @@ class ScatteringDoubleChannelCalculator(Analyticity):
             fcn_M = self.kM0000_simpified
             self.zeta_y = fcn_M(self.zeta_x)
             np.save(cache_file_name, self.zeta_y)
-        interpolator = interp1d(self.zeta_x, self.zeta_y, kind="linear")
-        self.M0000 = interpolator
-        print(
-            f"INIT CACHE TIME: {perf_counter()-s:.3f} secs, file size = {self.zeta_y.nbytes/1024:.3f} KB"
-        )
+        self.kM0000_interpolator = interp1d(self.zeta_x, self.zeta_y, kind="linear")
+        print(f"INIT CACHE TIME: {perf_counter()-s:.3f} secs, file size = {self.zeta_y.nbytes/1024:.3f} KB")
 
     def kM0000_simpified(self, q2):
         """
         simplified zeta function for S-wave.
         Note: M_0000 (k) = 2 / (sqrt(pi) * k * L) Z_00(1, q^2)
              L is dimension -1.
-        Here: 
+        Here:
             k * M_0000 = 2 / (sqrt(pi) * L) * Z_00(1, q^2)
                        = 1 / (pi * L) \sum_{n in R} [1 / (n^2 - q2)] - 4 pi R
         Note L = L_hat * a_s = 24 * a_s
@@ -142,17 +137,27 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         plt.clf()
 
     def get_luescher_determint(self, s, m1_A, m1_B, m2_A, m2_B):
-        '''
+        """
         Det [K^-1 - diag(rho1 M0000, rho2 M0000)] = 0.
         rho M0000 = 2 k / sqrt(s) M0000 = 2/sqrt(s) * kM0000
-        '''
+        """
         K_inv = self.scattering_matrix.get_K_inv_matrix(s)
 
         # dimensionless: q2 = (k * L / 2 / np.pi) ** 2
         # a_s = aspect_ratio * a_t = aspect_ratio / at_inv_GeV
-        q_square_1 = self.scattering_mom2(s, m1_A, m1_B) * (self.xi_0 / 2/ np.pi)**2
-        q_square_2 = self.scattering_mom2(s, m2_A, m2_B) * (self.xi_0 / 2/ np.pi)**2
-        rho_M0000_1 = 2 / np.vectorize(cmath.sqrt)(s) *  self.kM0000_simpified(q_square_1)
-        rho_M0000_2 = 2 / np.vectorize(cmath.sqrt)(s) *  self.kM0000_simpified(q_square_2)
-        return np.linalg.det(K_inv - np.diag((rho_M0000_1, rho_M0000_2)))
+        q_square_1 = self.scattering_mom2(s, m1_A, m1_B) * (self.xi_0 / 2 / np.pi) ** 2
+        print(q_square_1)
+        exit()
+        q_square_2 = self.scattering_mom2(s, m2_A, m2_B) * (self.xi_0 / 2 / np.pi) ** 2
+        rho_M0000_1 = 2 / np.vectorize(cmath.sqrt)(s) * self.kM0000_interpolator(q_square_1)
+        rho_M0000_2 = 2 / np.vectorize(cmath.sqrt)(s) * self.kM0000_interpolator(q_square_2)
+        return np.linalg.det(K_inv - np.diag([rho_M0000_1, rho_M0000_2]))
 
+    def plot_luescher_determint(self, s, m1_A, m1_B, m2_A, m2_B, x):
+        determinant = self.get_luescher_determint(s, m1_A, m1_B, m2_A, m2_B)
+        import matplotlib.pyplot as plt
+
+        plt.plot(x, determinant, "-b")
+        plt.ylim(-20, 20)
+        plt.show()
+        plt.clf()
