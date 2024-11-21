@@ -49,7 +49,6 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         # gamma = 1.0 for rest frame
 
         self.gamma = gamma
-        # self.at_inv_GeV = 6.894
         if xi_0 is None:
             xi_0 = 1.0
             warnings.warn("aspect_ratio xi_0 is not set, use default 1.0.", UserWarning)
@@ -100,7 +99,7 @@ class ScatteringDoubleChannelCalculator(Analyticity):
                     if tmp < cut**2:
                         ret += 1 / (tmp - q2)
         ret -= 4 * np.pi * cut
-        return ret / (self.Ls * np.pi) / (1 / self.xi_0)
+        return ret / (self.Ls * np.pi * self.xi_0)
 
     def set_scattering_matrix(self, form: ScatteringMatrixForm):
         """
@@ -149,7 +148,7 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         q_square_2 = self.scattering_mom2(s, m2_A, m2_B) * (self.xi_0 * self.Ls / 2 / np.pi) ** 2
         rho_M0000_1 = 2 / np.vectorize(cmath.sqrt)(s) * self.kM0000_interpolator(q_square_1)
         rho_M0000_2 = 2 / np.vectorize(cmath.sqrt)(s) * self.kM0000_interpolator(q_square_2)
-        rho_M0000_matrix = np.zeros((s.shape[0], 2, 2), dtype="f8")
+        rho_M0000_matrix = np.zeros((s.shape[0], 2, 2), dtype="c16")
         rho_M0000_matrix[:, 0, 0] = rho_M0000_1
         rho_M0000_matrix[:, 1, 1] = rho_M0000_2
         return np.linalg.det(K_inv - rho_M0000_matrix)
@@ -159,6 +158,6 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         import matplotlib.pyplot as plt
 
         plt.plot(x, determinant, "-b")
-        plt.ylim(-20, 20)
+        plt.ylim(-1, 1)
         plt.show()
         plt.clf()
