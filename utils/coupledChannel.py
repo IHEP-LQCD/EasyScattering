@@ -107,11 +107,12 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         """
         self.scattering_matrix = form
 
-    def set_chew_mandelstam(self, form: ChewMadelstemForm = None):
-        """
-        settter of chew mandelstam form.
-        """
-        self.chew_mandelstam = form
+    # update: chew mandelstam form should be set in ScatteringMatrixForm.
+    # def set_chew_mandelstam(self, form: ChewMadelstemForm = None):
+    #     """
+    #     settter of chew mandelstam form.
+    #     """
+    #     self.chew_mandelstam = form
 
     def set_energy_levels_data_jackknife(self, data):
         """

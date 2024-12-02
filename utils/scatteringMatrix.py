@@ -1,6 +1,6 @@
-
 import numpy as np
 from .base import ScatteringMatrixForm
+
 
 class KMatraixSumOfPoles(ScatteringMatrixForm):
     """
@@ -18,10 +18,43 @@ class KMatraixSumOfPoles(ScatteringMatrixForm):
                 ],
                 dtype="f8",
             )
-            gamma = np.array(
-                [[p["gamma11"], p["gamma12"]], [p["gamma12"], p["gamma22"]]], dtype="f8"
-            )
+            gamma = np.array([[p["gamma11"], p["gamma12"]], [p["gamma12"], p["gamma22"]]], dtype="f8")
             return 1 / ((p["M^2"] - s0)) * g + gamma
+
+        # K_matrix = (np.vectorize(K_matrix_fcn))(s)
+        if isinstance(s, np.ndarray):
+            K_matrix = np.array([K_matrix_fcn(s0) for s0 in s])
+        else:
+            K_matrix = K_matrix_fcn(s)
+        # print(K_matrix)
+        return K_matrix
+
+    def get_K_inv_matrix(self, s):
+        return np.linalg.inv(self.get_K_matrix(s))
+
+
+class KMatraixSumOfPolesWOCoupling(ScatteringMatrixForm):
+    """
+    this class is used to test coupled channel without coupling.
+    """
+
+    def get_K_matrix(self, s):
+        p = self._p
+
+        def K_matrix_fcn(s0):
+            g = np.array(
+                [
+                    [
+                        p["g1"] * p["g1"],
+                        0,
+                    ],
+                    [0, p["g2"] * p["g2"]],
+                ],
+                dtype="f8",
+            )
+
+            gamma = np.array([[p["gamma11"], 0], [0, p["gamma22"]]], dtype="f8")
+            return -1 / ((p["M^2"] - s0)) * g + gamma
 
         # K_matrix = (np.vectorize(K_matrix_fcn))(s)
         if isinstance(s, np.ndarray):
