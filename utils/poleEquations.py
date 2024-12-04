@@ -53,17 +53,17 @@ class PoleEquationsSolver(Analyticity):
             return radio_contour * 1j * np.exp(1j * t)
 
         Nchan = 2
+        residue = np.zeros(Nchan, dtype="c16")
         for ichan in range(Nchan):
             def integrand(t):
                 return t_matrix(contour(t))[ichan, ichan] * d_contour(t)
 
-            residue = (
+            residue[ichan] = (
                 integrate.quad(lambda t: np.real(integrand(t)), 0, 2 * np.pi)[0]
                 + 1j * integrate.quad(lambda t: np.imag(integrand(t)), 0, 2 * np.pi)[0]
             ) / (2 * np.pi * 1j)
-            print(residue)
 
-        if np.abs(residue) < 1e-5:
-            warnings.warn("residue is too small, please check the pole position.")
+            if np.abs(residue[ichan]) < 1e-5:
+                warnings.warn(f"Channel {ichan}, please check the pole position.")
 
         return -residue
