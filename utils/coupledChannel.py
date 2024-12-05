@@ -1,6 +1,8 @@
 import numpy as np
+import gvar as gv
 import cmath
 from math import fsum
+from functools import partial
 from scipy.interpolate import interp1d
 import warnings
 import os
@@ -62,6 +64,11 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         if not os.path.exists(cache_file_dir):
             os.makedirs(cache_file_dir)
         # self.fcn_M = self.factory_matrix_M(0, 0, 0, 0)
+
+        self.scattering_matrix = None
+        self.resampling_energies = None
+        self.resampling_type = None
+
         self.init_kM0000_cache()
 
     def init_kM0000_cache(self):
@@ -71,6 +78,7 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         if os.path.exists(cache_file_name):
             self.zeta_y = np.load(cache_file_name)
         else:
+            print("Start init cache for zeta function, please wait.")
             # fcn_M = self.factory_matrix_M(0, 0, 0, 0)
             fcn_M = self.__kM0000_simpified
             self.zeta_y = fcn_M(self.zeta_x)
@@ -114,27 +122,20 @@ class ScatteringDoubleChannelCalculator(Analyticity):
     #     """
     #     self.chew_mandelstam = form
 
-    def set_energy_levels_data_jackknife(self, data):
+    def set_resampling_energies(self, data: np.ndarray, resampling_type: str = "jackknife"):
         """
-        setter of energy levels jackknife data.
-            set data before set parameters of scattering matrix, then get the chi2.
+        setter of energy levels in resampling (jackknife / bootstrap) data.
+            data: np.ndarray, shape = (n_levels, n_resampling)
         """
-        self.n_levels, self.N_cfg = data.shape
-        self.energy_levels_data = data
-
-    # def set_zeta_function(self, zeta):
-    #     pass
-
-    @staticmethod
-    def plot_zeta_function(fcn):
-        x = np.linspace(-0.9, 8.5, 10000)
-        y = fcn(x)
-        import matplotlib.pyplot as plt
-
-        plt.plot(x, y, "--b")
-        plt.ylim(-10, 10)
-        plt.show()
-        plt.clf()
+        if resampling_type not in ["jackknife", "bootstrap"]:
+            raise ValueError(f"resampling_type = {resampling_type} is not supported.")
+        self.resampling_type = resampling_type
+        self.n_levels, self.n_resampling = data.shape
+        # sort by mean value of each energy level.
+        sorted_data = data[np.argsort(data.mean(axis=1))]
+        self.resampling_energies = sorted_data
+        print(f"init resampling_energies: n_levels = {self.n_levels}, n_resampling = {self.n_resampling}.")
+        print("energy mean: ", sorted_data.mean(axis=1))
 
     def get_luescher_determint(self, s, m1_A, m1_B, m2_A, m2_B):
         """
@@ -149,12 +150,93 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         q_square_2 = self.scattering_mom2(s, m2_A, m2_B) * (self.xi_0 * self.Ls / 2 / np.pi) ** 2
         rho_M0000_1 = 2 / np.vectorize(cmath.sqrt)(s) * self.kM0000_interpolator(q_square_1)
         rho_M0000_2 = 2 / np.vectorize(cmath.sqrt)(s) * self.kM0000_interpolator(q_square_2)
-        rho_M0000_matrix = np.zeros((s.shape[0], 2, 2), dtype="c16")
-        rho_M0000_matrix[:, 0, 0] = rho_M0000_1
-        rho_M0000_matrix[:, 1, 1] = rho_M0000_2
+        if isinstance(s, np.ndarray):
+            rho_M0000_matrix = np.zeros((s.shape[0], 2, 2), dtype="c16")
+            rho_M0000_matrix[:, 0, 0] = rho_M0000_1
+            rho_M0000_matrix[:, 1, 1] = rho_M0000_2
+        else:
+            rho_M0000_matrix = np.zeros((2, 2), dtype="f8")
+            rho_M0000_matrix[0, 0] = rho_M0000_1
+            rho_M0000_matrix[1, 1] = rho_M0000_2
         return np.linalg.det(K_inv - rho_M0000_matrix)
 
+    def __luescher_determint_scale__(self, s, m1_A, m1_B, m2_A, m2_B) -> float:
+        """
+        Det [K^-1 - diag(rho1 M0000, rho2 M0000)] = 0.
+        rho M0000 = 2 k / sqrt(s) M0000 = 2/sqrt(s) * kM0000
+        """
+        K_inv = self.scattering_matrix.get_K_inv_matrix(s)
+
+        # dimensionless: q2 = (k * L / 2 / np.pi) ** 2
+        # a_s = aspect_ratio * a_t = aspect_ratio / at_inv_GeV
+        q_square_1 = self.scattering_mom2(s, m1_A, m1_B) * (self.xi_0 * self.Ls / 2 / np.pi) ** 2
+        q_square_2 = self.scattering_mom2(s, m2_A, m2_B) * (self.xi_0 * self.Ls / 2 / np.pi) ** 2
+        rho_M0000_1 = 2 / np.sqrt(s) * self.kM0000_interpolator(q_square_1)
+        rho_M0000_2 = 2 / np.sqrt(s) * self.kM0000_interpolator(q_square_2)
+        rho_M0000_matrix = np.zeros((2, 2), dtype="f8")
+        # print(rho_M0000_1, rho_M0000_2)
+        rho_M0000_matrix[0, 0] = rho_M0000_1
+        rho_M0000_matrix[1, 1] = rho_M0000_2
+        return np.linalg.det(K_inv - rho_M0000_matrix)
+
+    def get_luescher_determint_zeros(self, m1_A, m1_B, m2_A, m2_B):
+        from scipy.optimize import fsolve
+
+        p0_zeros = np.mean(self.resampling_energies, axis=1)
+
+        fcn = partial(self.__luescher_determint_scale__, m1_A=m1_A, m1_B=m1_B, m2_A=m2_A, m2_B=m2_B)
+        print(fcn(p0_zeros[0]))
+        n_levels = self.n_levels
+        zeros = np.zeros(n_levels)
+
+        for i in range(n_levels):
+            zero = fsolve(fcn, p0_zeros[i])
+            zeros[i] = zero[0]
+        print("zeros: \t", zeros)
+        print("p0_zeros: \t", p0_zeros)
+        return zeros
+
+    def get_chi2(self, m1_A, m1_B, m2_A, m2_B, p=None):
+        """
+        get chi2 between the expected energy levels from the K matrix parameterization and the Jackknife data points.
+        """
+        if p is not None:
+            self.scattering_matrix.set_parameters(p)
+        if self.scattering_matrix._p is None:
+            raise ValueError("ScatteringMatrix parameters is not set yet, set_parameters(p) first.")
+        if self.resampling_energies is None:
+            raise ValueError("resampling_energies is not set yet.")
+        energies_lat = self.resampling_energies
+        n_levels = self.n_levels
+
+        energies_exp = self.get_luescher_determint_zeros(m1_A, m1_B, m2_A, m2_B)
+        chi2 = 0
+        # dataset = gv.dataset.avg_data(energies_lat.transpose((1, 0)))
+        # cov = gv.evalcov(dataset)
+        cov = np.cov(energies_lat) * (n_levels - 1)
+        print(cov.shape)
+        energies_lat_mean = np.mean(energies_lat, axis=1)
+        chi2 = np.einsum("i, ij, j", energies_exp - energies_lat_mean, np.linalg.inv(cov), energies_exp - energies_lat_mean)
+        return chi2
+
+    @staticmethod
+    def plot_zeta_function(fcn):
+        """
+        plot to check behavior.
+        """
+        x = np.linspace(-0.9, 8.5, 10000)
+        y = fcn(x)
+        import matplotlib.pyplot as plt
+
+        plt.plot(x, y, "--b")
+        plt.ylim(-10, 10)
+        plt.show()
+        plt.clf()
+
     def plot_luescher_determint(self, s, m1_A, m1_B, m2_A, m2_B, x):
+        """
+        plot to check behavior.
+        """
         determinant = self.get_luescher_determint(s, m1_A, m1_B, m2_A, m2_B)
         import matplotlib.pyplot as plt
 
