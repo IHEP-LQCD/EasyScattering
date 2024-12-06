@@ -60,7 +60,7 @@ def main():
     s = (sqrt_s_GEV / at_inv) ** 2
 
 
-    determinant = calculator.get_luescher_determint(s, m1_A=m1_a, m1_B=m1_b, m2_A=m2_a, m2_B=m2_b)
+    determinant = calculator.get_quantization_determint(s, m1_A=m1_a, m1_B=m1_b, m2_A=m2_a, m2_B=m2_b)
     calculator.plot_luescher_determint(s, m1_a, m1_b, m2_a, m2_b, sqrt_s_GEV)
     exit()
 

@@ -34,7 +34,7 @@ def main():
     k_matrix_parameterization.set_parameters(p)
     calculator.set_scattering_matrix(k_matrix_parameterization)
     energies_lat_data = np.load("./tests/jack_energy.npy").transpose((1, 0)) / at_inv
-    calculator.set_resampling_energies(energies_lat_data**2, resampling_type="jackknife")
+    calculator.set_resampling_energies(energies_lat_data, resampling_type="jackknife")
     print("Start fit chi2")
     chi2 = calculator.get_chi2(m1_A=m1_a, m1_B=m1_b, m2_A=m2_a, m2_B=m2_b)
     print(chi2)

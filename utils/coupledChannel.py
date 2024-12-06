@@ -137,7 +137,7 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         print(f"init resampling_energies: n_levels = {self.n_levels}, n_resampling = {self.n_resampling}.")
         print("energy mean: ", sorted_data.mean(axis=1))
 
-    def get_luescher_determint(self, s, m1_A, m1_B, m2_A, m2_B):
+    def get_quantization_determint(self, s, m1_A, m1_B, m2_A, m2_B):
         """
         Det [K^-1 - diag(rho1 M0000, rho2 M0000)] = 0.
         rho M0000 = 2 k / sqrt(s) M0000 = 2/sqrt(s) * kM0000
@@ -160,7 +160,7 @@ class ScatteringDoubleChannelCalculator(Analyticity):
             rho_M0000_matrix[1, 1] = rho_M0000_2
         return np.linalg.det(K_inv - rho_M0000_matrix)
 
-    def __luescher_determint_scale__(self, s, m1_A, m1_B, m2_A, m2_B) -> float:
+    def __quantization_determint_scale__(self, s, m1_A, m1_B, m2_A, m2_B) -> float:
         """
         Det [K^-1 - diag(rho1 M0000, rho2 M0000)] = 0.
         rho M0000 = 2 k / sqrt(s) M0000 = 2/sqrt(s) * kM0000
@@ -179,22 +179,22 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         rho_M0000_matrix[1, 1] = rho_M0000_2
         return np.linalg.det(K_inv - rho_M0000_matrix)
 
-    def get_luescher_determint_zeros(self, m1_A, m1_B, m2_A, m2_B):
+    def get_quantization_determint_zeros(self, m1_A, m1_B, m2_A, m2_B):
         from scipy.optimize import fsolve
 
-        p0_zeros = np.mean(self.resampling_energies, axis=1)
+        s0_zeros_prior = np.mean(self.resampling_energies, axis=1)**2
 
-        fcn = partial(self.__luescher_determint_scale__, m1_A=m1_A, m1_B=m1_B, m2_A=m2_A, m2_B=m2_B)
-        print(fcn(p0_zeros[0]))
+        fcn = partial(self.__quantization_determint_scale__, m1_A=m1_A, m1_B=m1_B, m2_A=m2_A, m2_B=m2_B)
+        print(fcn(s0_zeros_prior[0]))
         n_levels = self.n_levels
-        zeros = np.zeros(n_levels)
+        s_zeros = np.zeros(n_levels)
 
         for i in range(n_levels):
-            zero = fsolve(fcn, p0_zeros[i])
-            zeros[i] = zero[0]
-        print("zeros: \t", zeros)
-        print("p0_zeros: \t", p0_zeros)
-        return zeros
+            zero = fsolve(fcn, s0_zeros_prior[i])
+            s_zeros[i] = zero[0]
+        print("E_exp: \t", s_zeros**.5 * 7.219)
+        print("E_lat: \t", s0_zeros_prior**.5 * 7.219)
+        return s_zeros**.5
 
     def get_chi2(self, m1_A, m1_B, m2_A, m2_B, p=None):
         """
@@ -209,14 +209,23 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         energies_lat = self.resampling_energies
         n_levels = self.n_levels
 
-        energies_exp = self.get_luescher_determint_zeros(m1_A, m1_B, m2_A, m2_B)
-        chi2 = 0
+        energies_exp = self.get_quantization_determint_zeros(m1_A, m1_B, m2_A, m2_B)
         # dataset = gv.dataset.avg_data(energies_lat.transpose((1, 0)))
         # cov = gv.evalcov(dataset)
-        cov = np.cov(energies_lat) * (n_levels - 1)
-        print(cov.shape)
+        cov = np.cov(energies_lat)
+
+        resampling_factor = self.resampling_type
+        if resampling_factor == "jackknife":
+            resampling_factor = n_levels - 1
+        elif resampling_factor == "bootstrap":
+            resampling_factor = 1
+        cov *= resampling_factor
+
         energies_lat_mean = np.mean(energies_lat, axis=1)
-        chi2 = np.einsum("i, ij, j", energies_exp - energies_lat_mean, np.linalg.inv(cov), energies_exp - energies_lat_mean)
+        chi2 = np.einsum(
+            "i, ij, j", energies_exp - energies_lat_mean, np.linalg.inv(cov), energies_exp - energies_lat_mean
+        )
+
         return chi2
 
     @staticmethod
@@ -237,7 +246,7 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         """
         plot to check behavior.
         """
-        determinant = self.get_luescher_determint(s, m1_A, m1_B, m2_A, m2_B)
+        determinant = self.get_quantization_determint(s, m1_A, m1_B, m2_A, m2_B)
         import matplotlib.pyplot as plt
 
         plt.plot(x, determinant, "-b")
