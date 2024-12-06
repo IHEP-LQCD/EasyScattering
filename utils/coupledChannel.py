@@ -1,9 +1,11 @@
 import numpy as np
+from numpy import ndarray
 import gvar as gv
 import cmath
 from math import fsum
 from functools import partial
 from scipy.interpolate import interp1d
+from typing import Union, List
 import warnings
 import os
 
@@ -68,8 +70,46 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         self.scattering_matrix = None
         self.resampling_energies = None
         self.resampling_type = None
+        self.n_resampling = None
 
         self.init_kM0000_cache()
+
+    def _handle_resampling(self, p: Union[float, ndarray]):
+        if isinstance(p, ndarray):
+            if self.n_resampling is None:
+                self.n_resampling = p.shape[0]
+            elif self.n_resampling != p.shape[0]:
+                raise ValueError(f"p.shape {p.shape} is not equal to n_resampling {self.n_resampling}.")
+            return p
+        return p * np.ones((self.n_resampling), "f8")
+
+    def set_resampling_input(
+        self,
+        m1_A_resampling: Union[float, ndarray],
+        m1_B_resampling: Union[float, ndarray],
+        m2_A_resampling: Union[float, ndarray],
+        m2_B_resampling: Union[float, ndarray],
+        xi_0: Union[float, ndarray],
+        n_resampling: int = None,
+        resampling_type="jackknife",
+    ):
+        if self.n_resampling is None:
+            self.n_resampling = n_resampling
+        elif self.n_resampling != n_resampling:
+            raise ValueError("n_resampling is set inconsistantly.")
+        if resampling_type not in ["jackknife", "bootstrap"]:
+            raise ValueError(f"resampling_type = {resampling_type} is not supported.")
+        self.resampling_type = resampling_type
+        self.m1_A_resampling = self._handle_resampling(m1_A_resampling)
+        self.m1_B_resampling = self._handle_resampling(m1_B_resampling)
+        self.m2_A_resampling = self._handle_resampling(m2_A_resampling)
+        self.m2_B_resampling = self._handle_resampling(m2_B_resampling)
+        self.m1_A_mean = np.mean(self.m1_A_resampling)
+        self.m1_B_mean = np.mean(self.m1_B_resampling)
+        self.m2_A_mean = np.mean(self.m2_A_resampling)
+        self.m2_B_mean = np.mean(self.m2_B_resampling)
+        self.xi_0_resampling = self._handle_resampling(xi_0)
+        self.xi_0_mean = np.mean(self.xi_0_resampling)
 
     def init_kM0000_cache(self):
         cache_file_name = f"{self.cache_file_dir}/cache_{self.q2_begin}_{self.q2_end}_{self.q2_density}_{self.cut}.npy"
@@ -122,10 +162,10 @@ class ScatteringDoubleChannelCalculator(Analyticity):
     #     """
     #     self.chew_mandelstam = form
 
-    def set_resampling_energies(self, data: np.ndarray, resampling_type: str = "jackknife"):
+    def set_resampling_energies(self, data: ndarray, resampling_type: str = "jackknife"):
         """
         setter of energy levels in resampling (jackknife / bootstrap) data.
-            data: np.ndarray, shape = (n_levels, n_resampling)
+            data: numpy.ndarray, shape = (n_levels, n_resampling)
         """
         if resampling_type not in ["jackknife", "bootstrap"]:
             raise ValueError(f"resampling_type = {resampling_type} is not supported.")
@@ -136,6 +176,22 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         self.resampling_energies = sorted_data
         print(f"init resampling_energies: n_levels = {self.n_levels}, n_resampling = {self.n_resampling}.")
         print("energy mean: ", sorted_data.mean(axis=1))
+
+        # save the covariance matrix of resampling data.
+        # dataset = gv.dataset.avg_data(energies_lat.transpose((1, 0)))
+        # cov = gv.evalcov(dataset)
+        cov = np.cov(self.resampling_energies)
+
+        resampling_factor = self.resampling_type
+        if resampling_factor == "jackknife":
+            resampling_factor = (self.n_levels - 1) ** 2 / self.n_levels
+        elif resampling_factor == "bootstrap":
+            resampling_factor = 1
+        else:
+            raise ValueError(f"resampling_type = {resampling_factor} is not supported.")
+        cov *= resampling_factor
+        self.cov = cov
+        self.cov_inv = np.linalg.inv(cov)
 
     def get_quantization_determint(self, s, m1_A, m1_B, m2_A, m2_B):
         """
@@ -150,7 +206,7 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         q_square_2 = self.scattering_mom2(s, m2_A, m2_B) * (self.xi_0 * self.Ls / 2 / np.pi) ** 2
         rho_M0000_1 = 2 / np.vectorize(cmath.sqrt)(s) * self.kM0000_interpolator(q_square_1)
         rho_M0000_2 = 2 / np.vectorize(cmath.sqrt)(s) * self.kM0000_interpolator(q_square_2)
-        if isinstance(s, np.ndarray):
+        if isinstance(s, ndarray):
             rho_M0000_matrix = np.zeros((s.shape[0], 2, 2), dtype="c16")
             rho_M0000_matrix[:, 0, 0] = rho_M0000_1
             rho_M0000_matrix[:, 1, 1] = rho_M0000_2
@@ -182,21 +238,20 @@ class ScatteringDoubleChannelCalculator(Analyticity):
     def get_quantization_determint_zeros(self, m1_A, m1_B, m2_A, m2_B):
         from scipy.optimize import fsolve
 
-        s0_zeros_prior = np.mean(self.resampling_energies, axis=1)**2
+        s0_zeros_prior = np.mean(self.resampling_energies, axis=1) ** 2
 
         fcn = partial(self.__quantization_determint_scale__, m1_A=m1_A, m1_B=m1_B, m2_A=m2_A, m2_B=m2_B)
-        print(fcn(s0_zeros_prior[0]))
         n_levels = self.n_levels
         s_zeros = np.zeros(n_levels)
 
         for i in range(n_levels):
             zero = fsolve(fcn, s0_zeros_prior[i])
             s_zeros[i] = zero[0]
-        print("E_exp: \t", s_zeros**.5 * 7.219)
-        print("E_lat: \t", s0_zeros_prior**.5 * 7.219)
-        return s_zeros**.5
+        # print("E_exp: \t", s_zeros**0.5 * 7.219)
+        # print("E_lat: \t", s0_zeros_prior**0.5 * 7.219)
+        return s_zeros**0.5
 
-    def get_chi2(self, m1_A, m1_B, m2_A, m2_B, p=None):
+    def get_chi2(self, p=None):
         """
         get chi2 between the expected energy levels from the K matrix parameterization and the Jackknife data points.
         """
@@ -206,25 +261,14 @@ class ScatteringDoubleChannelCalculator(Analyticity):
             raise ValueError("ScatteringMatrix parameters is not set yet, set_parameters(p) first.")
         if self.resampling_energies is None:
             raise ValueError("resampling_energies is not set yet.")
+        m1_A, m1_B, m2_A, m2_B = self.m1_A_mean, self.m1_B_mean, self.m2_A_mean, self.m2_B_mean
         energies_lat = self.resampling_energies
         n_levels = self.n_levels
 
         energies_exp = self.get_quantization_determint_zeros(m1_A, m1_B, m2_A, m2_B)
-        # dataset = gv.dataset.avg_data(energies_lat.transpose((1, 0)))
-        # cov = gv.evalcov(dataset)
-        cov = np.cov(energies_lat)
-
-        resampling_factor = self.resampling_type
-        if resampling_factor == "jackknife":
-            resampling_factor = n_levels - 1
-        elif resampling_factor == "bootstrap":
-            resampling_factor = 1
-        cov *= resampling_factor
 
         energies_lat_mean = np.mean(energies_lat, axis=1)
-        chi2 = np.einsum(
-            "i, ij, j", energies_exp - energies_lat_mean, np.linalg.inv(cov), energies_exp - energies_lat_mean
-        )
+        chi2 = np.einsum("i, ij, j", energies_exp - energies_lat_mean, self.cov_inv, energies_exp - energies_lat_mean)
 
         return chi2
 

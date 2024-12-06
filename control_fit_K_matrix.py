@@ -1,6 +1,7 @@
 from utils import ScatteringDoubleChannelCalculator
 from utils import ChewMadelstemZero, KMatraixSumOfPoles
 import numpy as np
+from time import perf_counter_ns
 
 # MEMO
 # Fit of a K matrix parameterization contains the two parts:
@@ -15,6 +16,7 @@ import numpy as np
 def main():
     calculator = ScatteringDoubleChannelCalculator(Ls=16, Q=np.ones(3) * 0.0, cut=30, xi_0=5.0)
     at_inv = 7.219
+    n_cfg = 401
 
     # calculator.plot_zeta_function(calculator.M0000)
 
@@ -26,18 +28,29 @@ def main():
         "gamma22": -2.8785928892611397,
         "gamma12": 4.882070870322092,
     }
-    m1_a = 2.99528 / at_inv  # (0,1) are channels, (a,b) are particles
-    m1_b = 2.99528 / at_inv
-    m2_a = 3.08699 / at_inv
-    m2_b = 3.08699 / at_inv
+
     k_matrix_parameterization = KMatraixSumOfPoles(ChewMadelstemZero())
     k_matrix_parameterization.set_parameters(p)
     calculator.set_scattering_matrix(k_matrix_parameterization)
-    energies_lat_data = np.load("./tests/jack_energy.npy").transpose((1, 0)) / at_inv
+    energies_lat_data = np.load("./tests/jack_energy_two_patricle.npy").transpose((1, 0)) / at_inv
     calculator.set_resampling_energies(energies_lat_data, resampling_type="jackknife")
+
+    m1_resampling = np.load("./tests/jack_energy_single.npy")[:, 0] / at_inv
+    m2_resampling = np.load("./tests/jack_energy_single.npy")[:, 5] / at_inv
+    calculator.set_resampling_input(
+        m1_A_resampling=m1_resampling,
+        m1_B_resampling=m1_resampling,
+        m2_A_resampling=m2_resampling,
+        m2_B_resampling=m2_resampling,
+        n_resampling=n_cfg,
+        xi_0=5.0,
+        resampling_type="jackknife",
+    )
     print("Start fit chi2")
-    chi2 = calculator.get_chi2(m1_A=m1_a, m1_B=m1_b, m2_A=m2_a, m2_B=m2_b)
-    print(chi2)
+    s = perf_counter_ns()
+    chi2 = calculator.get_chi2()
+    print("time:", (perf_counter_ns() - s) / 1e9)
+    print("chi2 = ", chi2)
     exit()
 
 
