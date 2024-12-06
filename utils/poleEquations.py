@@ -1,5 +1,7 @@
 from .base import Analyticity, ChewMadelstemForm, ScatteringMatrixForm
 import numpy as np
+import sympy as sp
+import cmath
 from scipy import integrate
 from functools import partial
 
@@ -18,7 +20,7 @@ class PoleEquationsSolver(Analyticity):
         t_inv = partial(self.scattering_matrix.get_t_inv_matrix, m1_A=m1_A, m1_B=m1_B, m2_A=m2_A, m2_B=m2_B)
         assert np.abs(t_inv(s0)) < 1e-5
 
-    def get_pole_positions(self):
+    def get_pole_positions(self, m1_A, m1_B, m2_A, m2_B):
         """
         TODO:
         get pole positions of scattering matrix.
@@ -27,7 +29,25 @@ class PoleEquationsSolver(Analyticity):
             raise ValueError("Scattering matrix is not set, please set .set_scattering_matrix() first.")
         if self.scattering_matrix._p is None:
             raise ValueError("parameters not set, please scattering_matrix.set_parameters(para) before.")
-        pass
+
+        s = sp.symbols('s')
+        p = sp.symbols('p', imaginary=True)  # p is treated as imaginary in the equation here
+        n_chan = 2
+        K_matrix = self.scattering_matrix.get_K_matrix(s)
+        print(K_matrix)
+        for ichan in range(n_chan):
+            ma = m1_A if ichan == 0 else m2_A
+            mb = m1_B if ichan == 0 else m2_B
+
+            K = K_matrix[ichan, ichan]
+
+            eq = sp.Eq(sp.sqrt(s) / K / 2 , sp.I * p)
+
+            p_expr = (sp.sqrt_rh((s - (ma + mb)**2)) * cmath.sqrt(s - (ma - mb)**2)) / (2 * sp.sqrt(s))
+            solutions = sp.solve(p_expr, s)
+
+            # Extract solutions and return them
+            return [solution.evalf() for solution in solutions]
 
     def get_t_matrix_pole_residues(self, pole_s0, m1_A, m1_B, m2_A, m2_B):
         """
@@ -52,9 +72,9 @@ class PoleEquationsSolver(Analyticity):
         def d_contour(t):
             return radio_contour * 1j * np.exp(1j * t)
 
-        Nchan = 2
-        residue = np.zeros(Nchan, dtype="c16")
-        for ichan in range(Nchan):
+        n_chan = 2
+        residue = np.zeros(n_chan, dtype="c16")
+        for ichan in range(n_chan):
             def integrand(t):
                 return t_matrix(contour(t))[ichan, ichan] * d_contour(t)
 
