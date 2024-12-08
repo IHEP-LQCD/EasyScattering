@@ -245,7 +245,11 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         s_zeros = np.zeros(n_levels)
 
         for i in range(n_levels):
-            zero = fsolve(fcn, s0_zeros_prior[i])
+            try:
+                zero = fsolve(fcn, s0_zeros_prior[i])
+            except Exception as e:
+                print(f"Error in fsolve for level {i}: {e}")
+                zero = [0]
             s_zeros[i] = zero[0]
         # print("E_exp: \t", s_zeros**0.5 * 7.219)
         # print("E_lat: \t", s0_zeros_prior**0.5 * 7.219)
@@ -269,7 +273,7 @@ class ScatteringDoubleChannelCalculator(Analyticity):
 
         energies_lat_mean = np.mean(energies_lat, axis=1)
         chi2 = np.einsum("i, ij, j", energies_exp - energies_lat_mean, self.cov_inv, energies_exp - energies_lat_mean)
-
+        print("return chi2 = ", chi2)
         return chi2
 
     @staticmethod

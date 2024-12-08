@@ -48,9 +48,31 @@ def main():
     )
     print("Start fit chi2")
     s = perf_counter_ns()
-    chi2 = calculator.get_chi2()
+    chi2 = calculator.get_chi2(p)
     print("time:", (perf_counter_ns() - s) / 1e9)
     print("chi2 = ", chi2)
+    # exit()
+
+    from scipy.optimize import minimize
+
+    def objective_function(params):
+        param_dict = {
+            "g1": params[0],
+            "g2": params[1],
+            "M^2": params[2],
+            "gamma11": params[3],
+            "gamma22": params[4],
+            "gamma12": params[5],
+        }
+        # print("input p = \n", param_dict)
+        return calculator.get_chi2(param_dict)
+
+    para = [p["g1"], p["g2"], p["M^2"], p["gamma11"], p["gamma22"], p["gamma12"]]
+    # print(para)
+    result = minimize(objective_function, para)
+    print("Optimization result:", result)
+    print("Minimized chi2:", result.fun)
+    print("Optimized parameters:", result.x)
     exit()
 
 
