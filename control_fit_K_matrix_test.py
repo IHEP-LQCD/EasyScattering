@@ -1,6 +1,7 @@
 from utils import ScatteringDoubleChannelCalculator
 from utils import ChewMadelstemZero, KMatraixSumOfPoles
 import numpy as np
+import gvar as gv
 from time import perf_counter_ns
 
 # MEMO
@@ -24,9 +25,12 @@ def main():
         "g1": 1.5467876391135578 / at_inv,
         "g2": -3.0927332462193746 / at_inv,
         "M^2": 42.03222752610351 / at_inv**2,
-        "gamma11": 1.6874087208657231,
-        "gamma22": -2.8785928892611397,
-        "gamma12": 4.882070870322092,
+        # "gamma11": 1.6874087208657231,
+        # "gamma22": -2.8785928892611397,
+        # "gamma12": 4.882070870322092,
+        "gamma11": 1,
+        "gamma22": -3,
+        "gamma12": 5,
     }
 
     k_matrix_parameterization = KMatraixSumOfPoles(ChewMadelstemZero())
@@ -53,6 +57,9 @@ def main():
     print("chi2 = ", chi2)
     # exit()
 
+    erergy_gvar = energies_lat_data.std(axis=1) * (n_cfg - 1) ** 0.5
+    cov_diag = np.diag(erergy_gvar ** 2)
+
     from scipy.optimize import minimize
 
     def objective_function(params):
@@ -65,14 +72,20 @@ def main():
             "gamma12": params[5],
         }
         # print("input p = \n", param_dict)
-        return calculator.get_chi2(param_dict)
+        return calculator.get_chi2(param_dict, cov=cov_diag)
 
-    para = [p["g1"], p["g2"], p["M^2"], p["gamma11"], p["gamma22"], p["gamma12"]]
-    result = minimize(objective_function, para)
-    print("Optimization result:", result)
-    print("Minimized chi2:", result.fun)
-    print("Optimized parameters:", result.x)
-    exit()
+    # chi2 = 0
+    print(chi2)
+    while chi2 > 100:
+        para = [p["g1"], p["g2"], p["M^2"], p["gamma11"], p["gamma22"], p["gamma12"]]
+        # print(para)
+        result = minimize(objective_function, para)
+        print("Optimization result:", result)
+        print("Minimized chi2:", result.fun)
+        print("Optimized parameters:", result.x)
+        chi2 = result.fun
+        para = result.x
+    # exit()
 
 
 if __name__ == "__main__":

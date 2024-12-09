@@ -112,7 +112,7 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         self.xi_0_mean = np.mean(self.xi_0_resampling)
 
     def init_kM0000_cache(self):
-        cache_file_name = f"{self.cache_file_dir}/cache_{self.q2_begin}_{self.q2_end}_{self.q2_density}_{self.cut}.npy"
+        cache_file_name = f"{self.cache_file_dir}/cache_{self.q2_begin}_{self.q2_end}_{self.q2_density}_{self.cut}_L{self.Ls}.npy"
         s = perf_counter()
         self.zeta_x = np.linspace(self.q2_begin, self.q2_end, self.q2_density, dtype="f8")
         if os.path.exists(cache_file_name):
@@ -255,7 +255,7 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         # print("E_lat: \t", s0_zeros_prior**0.5 * 7.219)
         return s_zeros**0.5
 
-    def get_chi2(self, p=None):
+    def get_chi2(self, p=None, cov=None):
         """
         get chi2 between the expected energy levels from the K matrix parameterization and the Jackknife data points.
         """
@@ -271,9 +271,13 @@ class ScatteringDoubleChannelCalculator(Analyticity):
 
         energies_exp = self.get_quantization_determint_zeros(m1_A, m1_B, m2_A, m2_B)
 
+        cov_inv = self.cov_inv
+        if cov is not None:
+            cov_inv = np.linalg.inv(cov)
+
         energies_lat_mean = np.mean(energies_lat, axis=1)
-        chi2 = np.einsum("i, ij, j", energies_exp - energies_lat_mean, self.cov_inv, energies_exp - energies_lat_mean)
-        print("return chi2 = ", chi2)
+        chi2 = np.einsum("i, ij, j", energies_exp - energies_lat_mean, cov_inv, energies_exp - energies_lat_mean)
+        # print("return chi2 = ", chi2)
         return chi2
 
     @staticmethod
