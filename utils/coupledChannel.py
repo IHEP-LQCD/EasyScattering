@@ -184,7 +184,7 @@ class ScatteringDoubleChannelCalculator(Analyticity):
 
         resampling_factor = self.resampling_type
         if resampling_factor == "jackknife":
-            resampling_factor = (self.n_levels - 1) ** 2 / self.n_levels
+            resampling_factor = (self.n_resampling - 1) ** 2 / self.n_resampling
         elif resampling_factor == "bootstrap":
             resampling_factor = 1
         else:
@@ -270,6 +270,7 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         n_levels = self.n_levels
 
         energies_exp = self.get_quantization_determint_zeros(m1_A, m1_B, m2_A, m2_B)
+        print(energies_exp*7.219)
 
         cov_inv = self.cov_inv
         if cov is not None:

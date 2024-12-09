@@ -1,6 +1,7 @@
 from utils import ScatteringDoubleChannelCalculator
 from utils import ChewMadelstemZero, KMatraixSumOfPoles
 import numpy as np
+import gvar as gv
 from time import perf_counter_ns
 
 # MEMO
@@ -29,10 +30,13 @@ def main():
         "gamma12": 4.882070870322092,
     }
 
+
+    energies_lat_data = np.load("./tests/jack_energy_two_patricle.npy").transpose((1, 0)) / at_inv
+    cov = np.cov(energies_lat_data) * (n_cfg - 1) ** 2 / n_cfg  # convert numpy to jackknife cov
+
     k_matrix_parameterization = KMatraixSumOfPoles(ChewMadelstemZero())
     k_matrix_parameterization.set_parameters(p)
     calculator.set_scattering_matrix(k_matrix_parameterization)
-    energies_lat_data = np.load("./tests/jack_energy_two_patricle.npy").transpose((1, 0)) / at_inv
     calculator.set_resampling_energies(energies_lat_data, resampling_type="jackknife")
 
     m1_resampling = np.load("./tests/jack_energy_single.npy")[:, 0] / at_inv
@@ -48,7 +52,7 @@ def main():
     )
     print("Start fit chi2")
     s = perf_counter_ns()
-    chi2 = calculator.get_chi2(p)
+    chi2 = calculator.get_chi2(p, cov=cov)
     print("time:", (perf_counter_ns() - s) / 1e9)
     print("chi2 = ", chi2)
     # exit()
@@ -65,7 +69,7 @@ def main():
             "gamma12": params[5],
         }
         # print("input p = \n", param_dict)
-        return calculator.get_chi2(param_dict)
+        return calculator.get_chi2(param_dict, cov=None)
 
     para = [p["g1"], p["g2"], p["M^2"], p["gamma11"], p["gamma22"], p["gamma12"]]
     result = minimize(objective_function, para)
