@@ -112,7 +112,9 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         self.xi_0_mean = np.mean(self.xi_0_resampling)
 
     def init_kM0000_cache(self):
-        cache_file_name = f"{self.cache_file_dir}/cache_{self.q2_begin}_{self.q2_end}_{self.q2_density}_{self.cut}_L{self.Ls}.npy"
+        cache_file_name = (
+            f"{self.cache_file_dir}/cache_{self.q2_begin}_{self.q2_end}_{self.q2_density}_{self.cut}_L{self.Ls}.npy"
+        )
         s = perf_counter()
         self.zeta_x = np.linspace(self.q2_begin, self.q2_end, self.q2_density, dtype="f8")
         if os.path.exists(cache_file_name):
@@ -235,24 +237,59 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         rho_M0000_matrix[1, 1] = rho_M0000_2
         return np.linalg.det(K_inv - rho_M0000_matrix)
 
-    def get_quantization_determint_zeros(self, m1_A, m1_B, m2_A, m2_B):
-        from scipy.optimize import fsolve
+    @staticmethod
+    def plot_zeros_search(x, y, zeros):
+        import matplotlib.pyplot as plt
 
+        plt.plot(x, y, "-b")
+        for zero in zeros:
+            plt.axvline(x=zero, color="r", linestyle="--")
+        plt.plot(x, np.zeros_like(x), "-k")
+        plt.ylim(-0.5, 0.5)
+        plt.show()
+        plt.clf()
+
+    def get_quantization_determint_zeros(self, m1_A, m1_B, m2_A, m2_B, visiable=False):
         s0_zeros_prior = np.mean(self.resampling_energies, axis=1) ** 2
 
-        fcn = partial(self.__quantization_determint_scale__, m1_A=m1_A, m1_B=m1_B, m2_A=m2_A, m2_B=m2_B)
         n_levels = self.n_levels
-        s_zeros = np.zeros(n_levels)
+        # s_zeros = np.zeros(n_levels)
 
-        for i in range(n_levels):
-            try:
-                zero = fsolve(fcn, s0_zeros_prior[i])
-            except Exception as e:
-                print(f"Error in fsolve for level {i}: {e}")
-                zero = [0]
-            s_zeros[i] = zero[0]
-        # print("E_exp: \t", s_zeros**0.5 * 7.219)
-        # print("E_lat: \t", s0_zeros_prior**0.5 * 7.219)
+        solve_upper = s0_zeros_prior[0] - 0.01
+        solve_lower = s0_zeros_prior[-1] + 0.01
+        n_point = 2**14
+        interval = (solve_upper - solve_lower) / n_point
+
+        s = np.linspace(solve_lower, solve_upper, n_point)
+        quantization_determint = self.get_quantization_determint(s, m1_A, m1_B, m2_A, m2_B)
+        zeros_index = quantization_determint**2 < 1e-6
+        zeros_condidate = s[zeros_index]
+        det_condidate = quantization_determint[zeros_index]
+        s_zeros = []
+        for idx in range(len(zeros_condidate)):
+            if (
+                (zeros_condidate[idx] - zeros_condidate[(idx + 1) % len(zeros_condidate)]) ** 2 < 25 * interval**2
+            ) and (det_condidate[idx] * det_condidate[(idx + 1) % len(zeros_condidate)] < 0):
+                s_zeros.append(zeros_condidate[idx])
+        s_zeros = np.array(s_zeros)
+        print(f"Find {s_zeros.shape} zeros: ", s_zeros)
+
+        if visiable:
+            self.plot_zeros_search(s**0.5 * 7.219, quantization_determint, s_zeros**0.5 * 7.219)
+
+
+        # from scipy.optimize import fsolve
+        # fcn = partial(self.__quantization_determint_scale__, m1_A=m1_A, m1_B=m1_B, m2_A=m2_A, m2_B=m2_B)
+
+        # for i in range(n_levels):
+        #     try:
+        #         zero = fsolve(fcn, s0_zeros_prior[i])
+        #     except Exception as e:
+        #         print(f"Error in fsolve for level {i}: {e}")
+        #         zero = [0]
+        #     s_zeros[i] = zero[0]
+        print("E_exp: \t", s_zeros**0.5 * 7.219)
+        print("E_lat: \t", s0_zeros_prior**0.5 * 7.219)
         return s_zeros**0.5
 
     def get_chi2(self, p=None, cov=None):
@@ -270,7 +307,7 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         n_levels = self.n_levels
 
         energies_exp = self.get_quantization_determint_zeros(m1_A, m1_B, m2_A, m2_B)
-        print(energies_exp*7.219)
+        print(energies_exp * 7.219)
 
         cov_inv = self.cov_inv
         if cov is not None:
