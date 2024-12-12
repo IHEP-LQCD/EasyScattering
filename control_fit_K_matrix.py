@@ -21,15 +21,16 @@ def main():
 
     # calculator.plot_zeta_function(calculator.M0000)
 
-    p = {
-        "g1": 1.5467876391135578 / at_inv,
-        "g2": -3.0927332462193746 / at_inv,
-        "M^2": 42.03222752610351 / at_inv**2,
-        "gamma11": 1.6874087208657231,
-        "gamma22": -2.8785928892611397,
-        "gamma12": 4.882070870322092,
-    }
-
+    p_keys = ["g1", "g2", "M^2", "gamma11", "gamma22", "gamma12"]
+    p_values = [
+        1.5467876391135578 / at_inv,
+        -3.0927332462193746 / at_inv,
+        42.03222752610351 / at_inv**2,
+        1.6874087208657231,
+        -2.8785928892611397,
+        4.882070870322092,
+    ]
+    p = dict(zip(p_keys, p_values))
 
     energies_lat_data = np.load("./tests/jack_energy_two_patricle.npy").transpose((1, 0)) / at_inv
     cov = np.cov(energies_lat_data) * (n_cfg - 1) ** 2 / n_cfg  # convert numpy to jackknife cov
@@ -55,28 +56,18 @@ def main():
     chi2 = calculator.get_chi2(p, cov=cov)
     print("time:", (perf_counter_ns() - s) / 1e9)
     print("chi2 = ", chi2)
-    # exit()
 
+    # iterate to minimize chi2
     from scipy.optimize import minimize
 
     def objective_function(params):
-        param_dict = {
-            "g1": params[0],
-            "g2": params[1],
-            "M^2": params[2],
-            "gamma11": params[3],
-            "gamma22": params[4],
-            "gamma12": params[5],
-        }
-        # print("input p = \n", param_dict)
-        return calculator.get_chi2(param_dict, cov=None)
+        param_dict = dict(zip(p_keys, params))
+        return calculator.get_chi2(param_dict, cov=None, verbose= False)
 
-    para = [p["g1"], p["g2"], p["M^2"], p["gamma11"], p["gamma22"], p["gamma12"]]
-    result = minimize(objective_function, para)
+    result = minimize(objective_function, list(p.values()), method="Nelder-Mead")
     print("Optimization result:", result)
     print("Minimized chi2:", result.fun)
     print("Optimized parameters:", result.x)
-    exit()
 
 
 if __name__ == "__main__":

@@ -192,6 +192,7 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         else:
             raise ValueError(f"resampling_type = {resampling_factor} is not supported.")
         cov *= resampling_factor
+        self.resampling_factor = resampling_factor
         self.cov = cov
         self.cov_inv = np.linalg.inv(cov)
 
@@ -232,7 +233,6 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         rho_M0000_1 = 2 / np.sqrt(s) * self.kM0000_interpolator(q_square_1)
         rho_M0000_2 = 2 / np.sqrt(s) * self.kM0000_interpolator(q_square_2)
         rho_M0000_matrix = np.zeros((2, 2), dtype="f8")
-        # print(rho_M0000_1, rho_M0000_2)
         rho_M0000_matrix[0, 0] = rho_M0000_1
         rho_M0000_matrix[1, 1] = rho_M0000_2
         return np.linalg.det(K_inv - rho_M0000_matrix)
@@ -262,7 +262,7 @@ class ScatteringDoubleChannelCalculator(Analyticity):
 
         s = np.linspace(solve_lower, solve_upper, n_point)
         quantization_determint = self.get_quantization_determint(s, m1_A, m1_B, m2_A, m2_B)
-        zeros_index = quantization_determint**2 < 1e-6
+        zeros_index = quantization_determint**2 < 1e-4
         zeros_condidate = s[zeros_index]
         det_condidate = quantization_determint[zeros_index]
         s_zeros = []
@@ -271,28 +271,15 @@ class ScatteringDoubleChannelCalculator(Analyticity):
                 (zeros_condidate[idx] - zeros_condidate[(idx + 1) % len(zeros_condidate)]) ** 2 < 25 * interval**2
             ) and (det_condidate[idx] * det_condidate[(idx + 1) % len(zeros_condidate)] < 0):
                 s_zeros.append(zeros_condidate[idx])
-        s_zeros = np.array(s_zeros)
-        print(f"Find {s_zeros.shape} zeros: ", s_zeros)
+        s_zeros = np.sort(s_zeros)
+        # print(f"Find {s_zeros.shape} zeros: ", s_zeros)
 
         if visiable:
             self.plot_zeros_search(s**0.5 * 7.219, quantization_determint, s_zeros**0.5 * 7.219)
 
-
-        # from scipy.optimize import fsolve
-        # fcn = partial(self.__quantization_determint_scale__, m1_A=m1_A, m1_B=m1_B, m2_A=m2_A, m2_B=m2_B)
-
-        # for i in range(n_levels):
-        #     try:
-        #         zero = fsolve(fcn, s0_zeros_prior[i])
-        #     except Exception as e:
-        #         print(f"Error in fsolve for level {i}: {e}")
-        #         zero = [0]
-        #     s_zeros[i] = zero[0]
-        print("E_exp: \t", s_zeros**0.5 * 7.219)
-        print("E_lat: \t", s0_zeros_prior**0.5 * 7.219)
         return s_zeros**0.5
 
-    def get_chi2(self, p=None, cov=None):
+    def get_chi2(self, p=None, cov=None, verbose=False):
         """
         get chi2 between the expected energy levels from the K matrix parameterization and the Jackknife data points.
         """
@@ -306,16 +293,26 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         energies_lat = self.resampling_energies
         n_levels = self.n_levels
 
-        energies_exp = self.get_quantization_determint_zeros(m1_A, m1_B, m2_A, m2_B)
-        print(energies_exp * 7.219)
+        energies_at_zeros = self.get_quantization_determint_zeros(m1_A, m1_B, m2_A, m2_B, visiable=verbose)
 
         cov_inv = self.cov_inv
         if cov is not None:
             cov_inv = np.linalg.inv(cov)
 
         energies_lat_mean = np.mean(energies_lat, axis=1)
+        energies_exp = np.zeros(n_levels)
+        for ie in range(n_levels):
+            idx = np.argmin(np.abs(energies_lat_mean[ie] - energies_at_zeros))
+            energies_exp[ie] = energies_at_zeros[idx]
+
         chi2 = np.einsum("i, ij, j", energies_exp - energies_lat_mean, cov_inv, energies_exp - energies_lat_mean)
         # print("return chi2 = ", chi2)
+        if verbose:
+            print("E_exp: \t", energies_exp * 7.219)
+            print(
+                "E_lat: \t",
+                gv.gvar(energies_lat.mean(axis=1), energies_lat.std(axis=1) * self.resampling_factor**0.5) * 7.219,
+            )
         return chi2
 
     @staticmethod
