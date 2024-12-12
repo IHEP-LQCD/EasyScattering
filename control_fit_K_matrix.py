@@ -53,7 +53,9 @@ def main():
     )
     print("Start fit chi2")
     s = perf_counter_ns()
-    chi2 = calculator.get_chi2(p, cov=cov)
+    # set cov for hack covariance, use it for debugging, but not recommended for real fit.
+    # if you want to see the E_expected and the quantization determinant zeros distribution, set verbose=True
+    chi2 = calculator.get_chi2(p, cov=cov, verbose=True)
     print("time:", (perf_counter_ns() - s) / 1e9)
     print("chi2 = ", chi2)
 
@@ -62,7 +64,7 @@ def main():
 
     def objective_function(params):
         param_dict = dict(zip(p_keys, params))
-        return calculator.get_chi2(param_dict, cov=None, verbose= False)
+        return calculator.get_chi2(param_dict, cov=None, verbose=False)
 
     result = minimize(objective_function, list(p.values()), method="Nelder-Mead")
     print("Optimization result:", result)

@@ -301,9 +301,12 @@ class ScatteringDoubleChannelCalculator(Analyticity):
 
         energies_lat_mean = np.mean(energies_lat, axis=1)
         energies_exp = np.zeros(n_levels)
-        for ie in range(n_levels):
-            idx = np.argmin(np.abs(energies_lat_mean[ie] - energies_at_zeros))
-            energies_exp[ie] = energies_at_zeros[idx]
+        if len(energies_at_zeros) ==0 :
+            energies_exp = 0
+        else:
+            for ie in range(n_levels):
+                idx = np.argmin(np.abs(energies_lat_mean[ie] - energies_at_zeros))
+                energies_exp[ie] = energies_at_zeros[idx]
 
         chi2 = np.einsum("i, ij, j", energies_exp - energies_lat_mean, cov_inv, energies_exp - energies_lat_mean)
         # print("return chi2 = ", chi2)
