@@ -15,7 +15,7 @@ from time import perf_counter_ns
 
 
 def main():
-    calculator = ScatteringDoubleChannelCalculator(Ls=16, Q=np.ones(3) * 0.0, cut=30, xi_0=5.0)
+    calculator = ScatteringDoubleChannelCalculator(Ls=16, Q=np.ones(3) * 0.0, cut=30, at_inv_GeV=7.219)
     at_inv = 7.219
     n_cfg = 401
 
@@ -40,15 +40,17 @@ def main():
     calculator.set_scattering_matrix(k_matrix_parameterization)
     calculator.set_resampling_energies(energies_lat_data, resampling_type="jackknife")
 
-    m1_resampling = np.load("./tests/jack_energy_single.npy")[:, 0] / at_inv
-    m2_resampling = np.load("./tests/jack_energy_single.npy")[:, 5] / at_inv
+    m1_resampling = np.load("./tests/jack_energy_single.npy")[:, 0] / at_inv  # eta_c
+    m2_resampling = np.load("./tests/jack_energy_single.npy")[:, 5] / at_inv  # jpsi
     calculator.set_resampling_input(
         m1_A_resampling=m1_resampling,
         m1_B_resampling=m1_resampling,
         m2_A_resampling=m2_resampling,
         m2_B_resampling=m2_resampling,
         n_resampling=n_cfg,
-        xi_0=5.0,
+        # xi=5.0,
+        xi1=np.load("./tests/M415_etac_xi_jack.npy"),
+        xi2=np.load("./tests/M415_jpsi_xi_jack.npy"),
         resampling_type="jackknife",
     )
     print("Start fit chi2")
@@ -66,7 +68,7 @@ def main():
         param_dict = dict(zip(p_keys, params))
         return calculator.get_chi2(param_dict, cov=None, verbose=False)
 
-    result = minimize(objective_function, list(p.values()), method="Nelder-Mead")
+    result = minimize(objective_function, list(p.values()), method="Nelder-Mea")
     print("Optimization result:", result)
     print("Minimized chi2:", result.fun)
     print("Optimized parameters:", result.x)

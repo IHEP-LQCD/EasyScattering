@@ -43,7 +43,7 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         Q=[0, 0, 0],
         gamma: float = 1.0,
         cut: int = 30,
-        xi_0=None,
+        at_inv_GeV: float = 1.0,
         cache_file_dir: str = "./cache/",
     ) -> None:
         self.Ls = Ls
@@ -53,10 +53,6 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         # gamma = 1.0 for rest frame
 
         self.gamma = gamma
-        if xi_0 is None:
-            xi_0 = 1.0
-            warnings.warn("aspect_ratio xi_0 is not set, use default 1.0.", UserWarning)
-        self.xi_0 = xi_0
 
         self.cut = cut if cut >= 30 else 30
         self.q2_begin = -9.0001
@@ -66,11 +62,16 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         if not os.path.exists(cache_file_dir):
             os.makedirs(cache_file_dir)
         # self.fcn_M = self.factory_matrix_M(0, 0, 0, 0)
-
         self.scattering_matrix = None
         self.resampling_energies = None
         self.resampling_type = None
         self.n_resampling = None
+        self.resampling_factor = None
+        self.cov = None
+        self.cov_inv = None
+
+        # set at_inv_GeV only to display the energy in GeV and do nothing else.
+        self.at_inv_GeV = at_inv_GeV
 
         self.init_kM0000_cache()
 
@@ -89,7 +90,9 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         m1_B_resampling: Union[float, ndarray],
         m2_A_resampling: Union[float, ndarray],
         m2_B_resampling: Union[float, ndarray],
-        xi_0: Union[float, ndarray],
+        xi: Union[float, ndarray] = None,
+        xi1: Union[float, ndarray] = None,
+        xi2: Union[float, ndarray] = None,
         n_resampling: int = None,
         resampling_type="jackknife",
     ):
@@ -108,8 +111,18 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         self.m1_B_mean = np.mean(self.m1_B_resampling)
         self.m2_A_mean = np.mean(self.m2_A_resampling)
         self.m2_B_mean = np.mean(self.m2_B_resampling)
-        self.xi_0_resampling = self._handle_resampling(xi_0)
-        self.xi_0_mean = np.mean(self.xi_0_resampling)
+        if xi is not None and xi1 is None and xi2 is None:
+            self.xi1_resampling = self._handle_resampling(xi)
+            self.xi1_mean = np.mean(self.xi1_resampling)
+            self.xi2_resampling = self._handle_resampling(xi)
+            self.xi2_mean = np.mean(self.xi2_resampling)
+        elif xi1 is not None:
+            self.xi1_resampling = self._handle_resampling(xi1)
+            self.xi1_mean = np.mean(self.xi1_resampling)
+            self.xi2_resampling = self._handle_resampling(xi2)
+            self.xi2_mean = np.mean(self.xi2_resampling)
+        else:
+            raise ValueError("xi should be set.")
 
     def init_kM0000_cache(self):
         cache_file_name = (
@@ -122,13 +135,13 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         else:
             print("Start init cache for zeta function, please wait.")
             # fcn_M = self.factory_matrix_M(0, 0, 0, 0)
-            fcn_M = self.__kM0000_simpified
+            fcn_M = self.__kM0000_times_xi_simpified
             self.zeta_y = fcn_M(self.zeta_x)
             np.save(cache_file_name, self.zeta_y)
-        self.kM0000_interpolator = interp1d(self.zeta_x, self.zeta_y, kind="linear")
+        self.kM0000_times_xi_interpolator = interp1d(self.zeta_x, self.zeta_y, kind="linear")
         print(f"INIT CACHE TIME: {perf_counter()-s:.3f} secs, file size = {self.zeta_y.nbytes/1024:.3f} KB")
 
-    def __kM0000_simpified(self, q2):
+    def __kM0000_times_xi_simpified(self, q2):
         """
         simplified zeta function for S-wave.
         Note: M_0000 (k) = 2 / (sqrt(pi) * k * L) Z_00(1, q^2)
@@ -149,7 +162,7 @@ class ScatteringDoubleChannelCalculator(Analyticity):
                     if tmp < cut**2:
                         ret += 1 / (tmp - q2)
         ret -= 4 * np.pi * cut
-        return ret / (self.Ls * np.pi * self.xi_0)
+        return ret / (self.Ls * np.pi)
 
     def set_scattering_matrix(self, form: ScatteringMatrixForm):
         """
@@ -196,7 +209,7 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         self.cov = cov
         self.cov_inv = np.linalg.inv(cov)
 
-    def get_quantization_determint(self, s, m1_A, m1_B, m2_A, m2_B):
+    def get_quantization_determinant(self, s, m1_A, m1_B, m2_A, m2_B, xi1, xi2):
         """
         Det [K^-1 - diag(rho1 M0000, rho2 M0000)] = 0.
         rho M0000 = 2 k / sqrt(s) M0000 = 2/sqrt(s) * kM0000
@@ -205,10 +218,10 @@ class ScatteringDoubleChannelCalculator(Analyticity):
 
         # dimensionless: q2 = (k * L / 2 / np.pi) ** 2
         # a_s = aspect_ratio * a_t = aspect_ratio / at_inv_GeV
-        q_square_1 = self.scattering_mom2(s, m1_A, m1_B) * (self.xi_0 * self.Ls / 2 / np.pi) ** 2
-        q_square_2 = self.scattering_mom2(s, m2_A, m2_B) * (self.xi_0 * self.Ls / 2 / np.pi) ** 2
-        rho_M0000_1 = 2 / np.vectorize(cmath.sqrt)(s) * self.kM0000_interpolator(q_square_1)
-        rho_M0000_2 = 2 / np.vectorize(cmath.sqrt)(s) * self.kM0000_interpolator(q_square_2)
+        q_square_1 = self.scattering_mom2(s, m1_A, m1_B) * (xi1 * self.Ls / 2 / np.pi) ** 2
+        q_square_2 = self.scattering_mom2(s, m2_A, m2_B) * (xi2 * self.Ls / 2 / np.pi) ** 2
+        rho_M0000_1 = 2 / np.vectorize(cmath.sqrt)(s) * self.kM0000_times_xi_interpolator(q_square_1) / xi1
+        rho_M0000_2 = 2 / np.vectorize(cmath.sqrt)(s) * self.kM0000_times_xi_interpolator(q_square_2) / xi1
         if isinstance(s, ndarray):
             rho_M0000_matrix = np.zeros((s.shape[0], 2, 2), dtype="c16")
             rho_M0000_matrix[:, 0, 0] = rho_M0000_1
@@ -228,10 +241,10 @@ class ScatteringDoubleChannelCalculator(Analyticity):
 
         # dimensionless: q2 = (k * L / 2 / np.pi) ** 2
         # a_s = aspect_ratio * a_t = aspect_ratio / at_inv_GeV
-        q_square_1 = self.scattering_mom2(s, m1_A, m1_B) * (self.xi_0 * self.Ls / 2 / np.pi) ** 2
-        q_square_2 = self.scattering_mom2(s, m2_A, m2_B) * (self.xi_0 * self.Ls / 2 / np.pi) ** 2
-        rho_M0000_1 = 2 / np.sqrt(s) * self.kM0000_interpolator(q_square_1)
-        rho_M0000_2 = 2 / np.sqrt(s) * self.kM0000_interpolator(q_square_2)
+        q_square_1 = self.scattering_mom2(s, m1_A, m1_B) * (self.xi1_mean * self.Ls / 2 / np.pi) ** 2
+        q_square_2 = self.scattering_mom2(s, m2_A, m2_B) * (self.xi2_mean * self.Ls / 2 / np.pi) ** 2
+        rho_M0000_1 = 2 / np.sqrt(s) * self.kM0000_times_xi_interpolator(q_square_1)
+        rho_M0000_2 = 2 / np.sqrt(s) * self.kM0000_times_xi_interpolator(q_square_2)
         rho_M0000_matrix = np.zeros((2, 2), dtype="f8")
         rho_M0000_matrix[0, 0] = rho_M0000_1
         rho_M0000_matrix[1, 1] = rho_M0000_2
@@ -249,11 +262,8 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         plt.show()
         plt.clf()
 
-    def get_quantization_determint_zeros(self, m1_A, m1_B, m2_A, m2_B, visiable=False):
+    def get_quantization_determinant_zeros(self, visiable=False):
         s0_zeros_prior = np.mean(self.resampling_energies, axis=1) ** 2
-
-        n_levels = self.n_levels
-        # s_zeros = np.zeros(n_levels)
 
         solve_upper = s0_zeros_prior[0] - 0.01
         solve_lower = s0_zeros_prior[-1] + 0.01
@@ -261,7 +271,10 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         interval = (solve_upper - solve_lower) / n_point
 
         s = np.linspace(solve_lower, solve_upper, n_point)
-        quantization_determint = self.get_quantization_determint(s, m1_A, m1_B, m2_A, m2_B)
+        m1_A, m1_B, m2_A, m2_B = self.m1_A_mean, self.m1_B_mean, self.m2_A_mean, self.m2_B_mean
+        quantization_determint = self.get_quantization_determinant(
+            s, m1_A, m1_B, m2_A, m2_B, xi1=self.xi1_mean, xi2=self.xi2_mean
+        )
         zeros_index = quantization_determint**2 < 1e-4
         zeros_condidate = s[zeros_index]
         det_condidate = quantization_determint[zeros_index]
@@ -272,10 +285,10 @@ class ScatteringDoubleChannelCalculator(Analyticity):
             ) and (det_condidate[idx] * det_condidate[(idx + 1) % len(zeros_condidate)] < 0):
                 s_zeros.append(zeros_condidate[idx])
         s_zeros = np.sort(s_zeros)
-        # print(f"Find {s_zeros.shape} zeros: ", s_zeros)
 
         if visiable:
-            self.plot_zeros_search(s**0.5 * 7.219, quantization_determint, s_zeros**0.5 * 7.219)
+            self.plot_zeros_search(s**0.5 * self.at_inv_GeV, quantization_determint, s_zeros**0.5 * self.at_inv_GeV)
+            print(f"Find {s_zeros.shape} zeros: ", s_zeros)
 
         return s_zeros**0.5
 
@@ -289,11 +302,10 @@ class ScatteringDoubleChannelCalculator(Analyticity):
             raise ValueError("ScatteringMatrix parameters is not set yet, set_parameters(p) first.")
         if self.resampling_energies is None:
             raise ValueError("resampling_energies is not set yet.")
-        m1_A, m1_B, m2_A, m2_B = self.m1_A_mean, self.m1_B_mean, self.m2_A_mean, self.m2_B_mean
         energies_lat = self.resampling_energies
         n_levels = self.n_levels
 
-        energies_at_zeros = self.get_quantization_determint_zeros(m1_A, m1_B, m2_A, m2_B, visiable=verbose)
+        energies_at_zeros = self.get_quantization_determinant_zeros(visiable=False)
 
         cov_inv = self.cov_inv
         if cov is not None:
@@ -301,7 +313,7 @@ class ScatteringDoubleChannelCalculator(Analyticity):
 
         energies_lat_mean = np.mean(energies_lat, axis=1)
         energies_exp = np.zeros(n_levels)
-        if len(energies_at_zeros) ==0 :
+        if len(energies_at_zeros) == 0:
             energies_exp = 0
         else:
             for ie in range(n_levels):
@@ -311,10 +323,11 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         chi2 = np.einsum("i, ij, j", energies_exp - energies_lat_mean, cov_inv, energies_exp - energies_lat_mean)
         # print("return chi2 = ", chi2)
         if verbose:
-            print("E_exp: \t", energies_exp * 7.219)
+            print("E_exp: \t", energies_exp * self.at_inv_GeV)
             print(
                 "E_lat: \t",
-                gv.gvar(energies_lat.mean(axis=1), energies_lat.std(axis=1) * self.resampling_factor**0.5) * 7.219,
+                gv.gvar(energies_lat.mean(axis=1), energies_lat.std(axis=1) * self.resampling_factor**0.5)
+                * self.at_inv_GeV,
             )
         return chi2
 
@@ -332,11 +345,11 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         plt.show()
         plt.clf()
 
-    def plot_luescher_determint(self, s, m1_A, m1_B, m2_A, m2_B, x):
+    def plot_quantization_determinant(self, s, m1_A, m1_B, m2_A, m2_B, x):
         """
         plot to check behavior.
         """
-        determinant = self.get_quantization_determint(s, m1_A, m1_B, m2_A, m2_B)
+        determinant = self.get_quantization_determinant(s, m1_A, m1_B, m2_A, m2_B, xi1=self.xi1_mean, xi2=self.xi2_mean)
         import matplotlib.pyplot as plt
 
         plt.plot(x, determinant, "-b")

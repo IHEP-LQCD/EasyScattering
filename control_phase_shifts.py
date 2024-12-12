@@ -6,7 +6,7 @@ import numpy as np
 def main():
     at_inv = 7.219
     calculator = ScatteringDoubleChannelCalculator(
-        Ls=16, Q=np.ones(3) * 0.0, cut=30, xi_0=5.0
+        Ls=16, Q=np.ones(3) * 0.0, cut=30, at_inv_GeV=7.219
     )
 
     p = {
@@ -60,8 +60,8 @@ def main():
     s = (sqrt_s_GEV / at_inv) ** 2
 
 
-    determinant = calculator.get_quantization_determint(s, m1_A=m1_a, m1_B=m1_b, m2_A=m2_a, m2_B=m2_b)
-    calculator.plot_luescher_determint(s, m1_a, m1_b, m2_a, m2_b, sqrt_s_GEV)
+    determinant = calculator.get_quantization_determinant(s, m1_A=m1_a, m1_B=m1_b, m2_A=m2_a, m2_B=m2_b)
+    calculator.plot_quantization_determinant(s, m1_a, m1_b, m2_a, m2_b, sqrt_s_GEV)
     exit()
 
     s_matrix = calculator.scattering_matrix.get_S_matrix_from_t(

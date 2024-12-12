@@ -30,7 +30,7 @@ def main():
 
     sqrt_s_GeV = np.linspace(3.9, 4.0, 100)
     s = (sqrt_s_GeV / at_inv) ** 2
-    determinant = calculator.get_quantization_determint(s, m1_A=m1_A, m1_B=m1_B, m2_A=m2_A, m2_B=m2_B)
+    determinant = calculator.get_quantization_determinant(s, m1_A=m1_A, m1_B=m1_B, m2_A=m2_A, m2_B=m2_B)
     print(determinant)
     # calculator.scattering_matrix.get_S_matrix_from_t(s, m1_A=m1_A, m1_B=m1_B, m2_A=m2_A, m2_B=m2_B)
     exit()
