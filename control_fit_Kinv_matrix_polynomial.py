@@ -1,5 +1,5 @@
 from utils import ScatteringDoubleChannelCalculator
-from utils import ChewMadelstemZero, KMatraixSumOfPoles
+from utils import ChewMadelstemZero, KMatraixSumOfPoles, KinvMatraixPolymomialSqrts
 import numpy as np
 import gvar as gv
 from time import perf_counter_ns
@@ -18,17 +18,19 @@ def main():
     calculator = ScatteringDoubleChannelCalculator(Ls=16, Q=np.ones(3) * 0.0, cut=30, at_inv_GeV=7.219)
     at_inv = 7.219
     n_cfg = 401
-
     # calculator.plot_zeta_function(calculator.M0000)
 
-    p_keys = ["g1", "g2", "M^2", "gamma11", "gamma22", "gamma12"]
-    p_values = [0] * 6
+    p_keys = ["c0_11", "c0_12", "c0_22", "c1_11", "c1_12", "c1_22", "c2_11", "c2_12", "c2_22"]
+    p_values = [0] * 9
     p = dict(zip(p_keys, p_values))
+    print(p)
 
-    energies_lat_data = np.load("./tests/jack_energy_two_patricle.npy").transpose((1, 0)) / at_inv
+    energies_lat_data = np.load("./tests/jack_energy_two_patricle.npy").transpose((1, 0))[:] / at_inv
     cov = np.cov(energies_lat_data) * (n_cfg - 1) ** 2 / n_cfg  # convert numpy to jackknife cov
+    # cov = np.diag(np.diag(cov))
 
-    k_matrix_parameterization = KMatraixSumOfPoles(ChewMadelstemZero())
+    # set K matrix parameterization
+    k_matrix_parameterization = KinvMatraixPolymomialSqrts(ChewMadelstemZero())
     k_matrix_parameterization.set_parameters(p)
     calculator.set_scattering_matrix(k_matrix_parameterization)
     calculator.set_resampling_energies(energies_lat_data, resampling_type="jackknife")
@@ -48,8 +50,6 @@ def main():
     )
     print("Start fit chi2")
     s = perf_counter_ns()
-    # set cov for hack covariance, use it for debugging, but not recommended for real fit.
-    # if you want to see the E_expected and the quantization determinant zeros distribution, set verbose=True
     chi2 = calculator.get_chi2(p, cov=cov, verbose=True)
     print("time:", (perf_counter_ns() - s) / 1e9)
     print("chi2 = ", chi2)
@@ -59,12 +59,26 @@ def main():
 
     def objective_function(params):
         param_dict = dict(zip(p_keys, params))
-        return calculator.get_chi2(param_dict, cov=None, verbose=False)
+        return calculator.get_chi2(param_dict, cov=cov, verbose=False)
 
-    result = minimize(objective_function, list(p.values()), method="Nelder-Mead")
-    print("Optimization result:", result)
-    print("Minimized chi2:", result.fun)
-    print("Optimized parameters:", result.x)
+    print(chi2)
+    para = list(p.values())
+    best_chi2 = chi2
+    best_para = para
+    while chi2 > 10:
+        para = [np.random.uniform(-0.005, 0.005) + i for i in para]
+        result = minimize(objective_function, para, method="Nelder-Mead")
+        print("Optimization result:", result)
+        print("Minimized chi2:", result.fun)
+        print("Optimized parameters:", result.x)
+        if result.fun < best_chi2:
+            best_chi2 = result.fun
+            best_para = result.x
+        print("Best chi2:", best_chi2)
+        print("Best parameters:", ", ".join([str(i) for i in best_para]))
+
+        chi2 = result.fun
+        para = result.x
 
 
 if __name__ == "__main__":
