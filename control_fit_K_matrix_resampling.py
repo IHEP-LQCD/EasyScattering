@@ -59,17 +59,11 @@ def main():
     print("time:", (perf_counter_ns() - s) / 1e9)
     print("chi2 = ", chi2)
 
-    # iterate to minimize chi2
-    from scipy.optimize import minimize
+    # resampling to chi2
+    chi2_resampling, parametrs_resampling, energies_exp_resampling = calculator.get_chi2_resampling(p, verbose=True)
+    print("chi2_resampling = ", chi2_resampling)
 
-    def objective_function(params):
-        param_dict = dict(zip(p_keys, params))
-        return calculator.get_chi2(param_dict, verbose=False)
-
-    result = minimize(objective_function, list(p.values()), method="Nelder-Mead")
-    print("Optimization result:", result)
-    print("Minimized chi2:", result.fun)
-    print("Optimized parameters:", result.x)
+    exit()
 
 
 if __name__ == "__main__":

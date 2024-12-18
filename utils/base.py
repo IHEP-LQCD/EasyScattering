@@ -113,6 +113,9 @@ class ScatteringMatrixForm(ABC, Analyticity):
     def set_parameters(self, p):
         self._p = p
 
+    def get_parameters(self):
+        return self._p
+
     @abstractmethod
     def get_K_matrix(self, s): ...
 

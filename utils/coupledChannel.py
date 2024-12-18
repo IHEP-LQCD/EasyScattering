@@ -9,6 +9,10 @@ from typing import Union, List
 import warnings
 import os
 
+
+from scipy.optimize import minimize
+from tqdm import trange
+
 from time import perf_counter
 
 from .base import Analyticity, ChewMadelstemForm, ScatteringMatrixForm
@@ -192,6 +196,14 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         print(f"init resampling_energies: n_levels = {self.n_levels}, n_resampling = {self.n_resampling}.")
         print("energy mean: ", sorted_data.mean(axis=1))
 
+        # solve zeros resolution
+        _s0_zeros_prior = np.mean(self.resampling_energies, axis=1) ** 2
+        _solve_zeros_upper = _s0_zeros_prior[0] - 0.01
+        _solve_zeros_lower = _s0_zeros_prior[-1] + 0.01
+        _n_point = 2**14
+        self._solve_zeros_interval = (_solve_zeros_upper - _solve_zeros_lower) / _n_point
+        self._solve_zeros_s_linspace = np.linspace(_solve_zeros_lower, _solve_zeros_upper, _n_point)
+
         # save the covariance matrix of resampling data.
         # dataset = gv.dataset.avg_data(energies_lat.transpose((1, 0)))
         # cov = gv.evalcov(dataset)
@@ -263,14 +275,7 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         plt.clf()
 
     def get_quantization_determinant_zeros(self, visiable=False):
-        s0_zeros_prior = np.mean(self.resampling_energies, axis=1) ** 2
-
-        solve_upper = s0_zeros_prior[0] - 0.01
-        solve_lower = s0_zeros_prior[-1] + 0.01
-        n_point = 2**14
-        interval = (solve_upper - solve_lower) / n_point
-
-        s = np.linspace(solve_lower, solve_upper, n_point)
+        s = self._solve_zeros_s_linspace
         m1_A, m1_B, m2_A, m2_B = self.m1_A_mean, self.m1_B_mean, self.m2_A_mean, self.m2_B_mean
         quantization_determint = self.get_quantization_determinant(
             s, m1_A, m1_B, m2_A, m2_B, xi1=self.xi1_mean, xi2=self.xi2_mean
@@ -280,8 +285,11 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         det_condidate = quantization_determint[zeros_index]
         s_zeros = []
         for idx in range(len(zeros_condidate)):
+            # if the zeros condidates are too close, only keep one.
+            # the factor 25 is a empirical value, that is 5 * energy interval.
             if (
-                (zeros_condidate[idx] - zeros_condidate[(idx + 1) % len(zeros_condidate)]) ** 2 < 25 * interval**2
+                (zeros_condidate[idx] - zeros_condidate[(idx + 1) % len(zeros_condidate)]) ** 2
+                < 25 * self._solve_zeros_interval**2
             ) and (det_condidate[idx] * det_condidate[(idx + 1) % len(zeros_condidate)] < 0):
                 s_zeros.append(zeros_condidate[idx])
         s_zeros = np.sort(s_zeros)
@@ -292,9 +300,42 @@ class ScatteringDoubleChannelCalculator(Analyticity):
 
         return s_zeros**0.5
 
-    def get_chi2(self, p=None, cov=None, verbose=False):
+    def get_quantization_determinant_zeros_resampling(self, visiable=False, i_resampling: int = 0):
+        s = self._solve_zeros_s_linspace
+        # m1_A, m1_B, m2_A, m2_B = self.m1_A_mean, self.m1_B_mean, self.m2_A_mean, self.m2_B_mean
+        m1_A, m1_B, m2_A, m2_B = (
+            self.m1_A_resampling[i_resampling],
+            self.m1_B_resampling[i_resampling],
+            self.m2_A_resampling[i_resampling],
+            self.m2_B_resampling[i_resampling],
+        )
+        quantization_determint = self.get_quantization_determinant(
+            s, m1_A, m1_B, m2_A, m2_B, xi1=self.xi1_resampling[i_resampling], xi2=self.xi2_resampling[i_resampling]
+        )
+        zeros_index = quantization_determint**2 < 1e-4
+        zeros_condidate = s[zeros_index]
+        det_condidate = quantization_determint[zeros_index]
+        s_zeros = []
+        for idx in range(len(zeros_condidate)):
+            # if the zeros condidates are too close, only keep one.
+            # the factor 25 is a empirical value, that is 5 * energy interval.
+            if (
+                (zeros_condidate[idx] - zeros_condidate[(idx + 1) % len(zeros_condidate)]) ** 2
+                < 25 * self._solve_zeros_interval**2
+            ) and (det_condidate[idx] * det_condidate[(idx + 1) % len(zeros_condidate)] < 0):
+                s_zeros.append(zeros_condidate[idx])
+        s_zeros = np.sort(s_zeros)
+
+        if visiable:
+            self.plot_zeros_search(s**0.5 * self.at_inv_GeV, quantization_determint, s_zeros**0.5 * self.at_inv_GeV)
+            print(f"Find {s_zeros.shape} zeros: ", s_zeros)
+
+        return s_zeros**0.5
+
+    def get_chi2(self, p=None, cov_debugging=None, verbose=False):
         """
-        get chi2 between the expected energy levels from the K matrix parameterization and the Jackknife data points.
+        get chi2 between the expected energy levels from the K matrix parameterization.
+            cov_debugging: covariance matrix for debugging, not recommended for real fit.
         """
         if p is not None:
             self.scattering_matrix.set_parameters(p)
@@ -308,8 +349,8 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         energies_at_zeros = self.get_quantization_determinant_zeros(visiable=False)
 
         cov_inv = self.cov_inv
-        if cov is not None:
-            cov_inv = np.linalg.inv(cov)
+        if cov_debugging is not None:
+            cov_inv = np.linalg.inv(cov_debugging)
 
         energies_lat_mean = np.mean(energies_lat, axis=1)
         energies_exp = np.zeros(n_levels)
@@ -330,6 +371,80 @@ class ScatteringDoubleChannelCalculator(Analyticity):
                 * self.at_inv_GeV,
             )
         return chi2
+
+    def get_chi2_resampling(self, p=None, cov_debugging=None, verbose=False):
+        """
+        get chi2 between the expected energy levels from the K matrix parameterization, using resampling data points.
+            cov_debugging: covariance matrix for debugging, not recommended for real fit.
+        """
+        if p is not None:
+            self.scattering_matrix.set_parameters(p)
+        if self.scattering_matrix._p is None:
+            raise ValueError("ScatteringMatrix parameters is not set yet, set_parameters(p) first.")
+        if self.resampling_energies is None:
+            raise ValueError("resampling_energies is not set yet.")
+        n_levels = self.n_levels
+
+        # energies_at_zeros = self.get_quantization_determinant_zeros(visiable=False)
+
+        cov_inv = self.cov_inv
+        if cov_debugging is not None:
+            cov_inv = np.linalg.inv(cov_debugging)
+
+        para_prior_dict = self.scattering_matrix.get_parameters()
+        para_prior_list = list(para_prior_dict.values())
+        para_keys = list(para_prior_dict.keys())
+
+        chi2_resampling = np.zeros(self.n_resampling, "f8")
+        parametrs_resampling = np.zeros((self.n_resampling, len(para_prior_list)), "f8")
+        energies_exp_resampling = np.zeros((self.n_resampling, n_levels))
+
+        for i_resamping in trange(self.n_resampling):
+            energies_lat_r = self.resampling_energies[:, i_resamping]
+
+            def minimum_funtion(input_para):
+                energies_exp_r = np.zeros(n_levels)
+                self.scattering_matrix.set_parameters(dict(zip(para_keys, input_para)))
+                energies_at_zeros_r = self.get_quantization_determinant_zeros_resampling(
+                    visiable=False, i_resampling=i_resamping
+                )
+                if len(energies_at_zeros_r) == 0:
+                    energies_exp_r[:] = 0
+                else:
+                    for ie in range(n_levels):
+                        idx = np.argmin(np.abs(energies_lat_r[ie] - energies_at_zeros_r))
+                        energies_exp_r[ie] = energies_at_zeros_r[idx]
+                chi2 = np.einsum("i, ij, j", energies_exp_r - energies_lat_r, cov_inv, energies_exp_r - energies_lat_r)
+                # if verbose:
+                #     print("E_exp: \t", energies_exp * self.at_inv_GeV)
+                #     print(
+                #         "E_lat: \t",
+                #         gv.gvar(energies_lat.mean(axis=1), energies_lat.std(axis=1) * self.resampling_factor**0.5)
+                #         * self.at_inv_GeV,
+                #     )
+                return chi2
+
+            minimize_result = minimize(minimum_funtion, para_prior_list, method="Nelder-Mead")
+            print("Optimization result:", minimize_result)
+            print("Minimized chi2:", minimize_result.fun)
+            print("Optimized parameters:", minimize_result.x)
+            chi2_resampling[i_resamping] = minimize_result.fun
+            parametrs_resampling[i_resamping] = minimize_result.x
+            # get the energies expected from the optimized parameters.
+            energies_exp_r = np.zeros(n_levels)
+            self.scattering_matrix.set_parameters(dict(zip(para_keys, minimize_result.x)))
+            energies_at_zeros_r = self.get_quantization_determinant_zeros_resampling(
+                visiable=False, i_resampling=i_resamping
+            )
+            if len(energies_at_zeros_r) == 0:
+                energies_exp_r[:] = 0
+            else:
+                for ie in range(n_levels):
+                    idx = np.argmin(np.abs(energies_lat_r[ie] - energies_at_zeros_r))
+                    energies_exp_r[ie] = energies_at_zeros_r[idx]
+            energies_exp_resampling[i_resamping] = energies_exp_r
+
+        return chi2_resampling, parametrs_resampling, energies_exp_resampling
 
     @staticmethod
     def plot_zeta_function(fcn):

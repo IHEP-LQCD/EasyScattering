@@ -26,8 +26,10 @@ def main():
     print(p)
 
     energies_lat_data = np.load("./tests/jack_energy_two_patricle.npy").transpose((1, 0))[:] / at_inv
+
+    # this covariance matrix is used for jackknife resampling.
+    # and it also internally used for chi2 calculation. show it here.
     cov = np.cov(energies_lat_data) * (n_cfg - 1) ** 2 / n_cfg  # convert numpy to jackknife cov
-    # cov = np.diag(np.diag(cov))
 
     # set K matrix parameterization
     k_matrix_parameterization = KinvMatraixPolymomialSqrts(ChewMadelstemZero())
@@ -50,7 +52,7 @@ def main():
     )
     print("Start fit chi2")
     s = perf_counter_ns()
-    chi2 = calculator.get_chi2(p, cov=cov, verbose=True)
+    chi2 = calculator.get_chi2(p, verbose=True)
     print("time:", (perf_counter_ns() - s) / 1e9)
     print("chi2 = ", chi2)
 
@@ -59,7 +61,7 @@ def main():
 
     def objective_function(params):
         param_dict = dict(zip(p_keys, params))
-        return calculator.get_chi2(param_dict, cov=cov, verbose=False)
+        return calculator.get_chi2(param_dict, verbose=False)
 
     print(chi2)
     para = list(p.values())
