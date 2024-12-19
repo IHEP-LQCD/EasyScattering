@@ -76,6 +76,20 @@ class Analyticity:
         """
         k = self.scattering_mom(s, m_A, m_B).real
         return 2 * k / self.sqrt_vectorized(s)
+    
+    def rho_heviside_matrix(self, s, m1_A, m1_B, m2_A, m2_B):
+        """
+        define rho(s) 2 by 2 matrix.
+        """
+
+        def get_rho_heviside_matrix_fcn(s0, m1_A, m1_B, m2_A, m2_B):
+            return np.diag([self.rho_heviside(s0, m1_A, m1_B), self.rho_heviside(s0, m2_A, m2_B)])
+
+        if isinstance(s, np.ndarray):
+            rho_heviside_matrix = np.array([get_rho_heviside_matrix_fcn(s0, m1_A, m1_B, m2_A, m2_B) for s0 in s])
+        else:
+            rho_heviside_matrix = get_rho_heviside_matrix_fcn(s, m1_A, m1_B, m2_A, m2_B)
+        return rho_heviside_matrix
 
 
 class ChewMadelstemForm(ABC):
@@ -131,6 +145,12 @@ class ScatteringMatrixForm(ABC, Analyticity):
         if self._p is None:
             raise ValueError("parameters not set, please set_parameters(para) before.")
         return np.linalg.inv(self.get_t_inv_matrix(s, m1_A, m1_B, m2_A, m2_B))
+
+    def get_rhot_square_abs(self, s_array, m1_A, m1_B, m2_A, m2_B):
+        t_matrix = self.get_t_matrix(s_array, m1_A, m1_B, m2_A, m2_B)
+        rho_sqrt_matrix = self.sqrt_vectorized(self.rho_heviside_matrix(s_array, m1_A, m1_B, m2_A, m2_B))
+        rhot_square_abs = np.abs(rho_sqrt_matrix @ t_matrix @ rho_sqrt_matrix) ** 2
+        return rhot_square_abs
 
     def get_S_matrix_from_t(self, s, m1_A, m1_B, m2_A, m2_B):
         def get_S_matrix_fcn(s0):
@@ -204,10 +224,7 @@ class ScatteringMatrixForm(ABC, Analyticity):
         plt.clf()
 
     def plot_rhot_square(self, s_array, m1_A, m1_B, m2_A, m2_B, x):
-        t_matrix = self.get_t_matrix(s_array, m1_A, m1_B, m2_A, m2_B)
-        rho_sqrt_matrix = self.sqrt_vectorized(self.rho_matrix(s_array, m1_A, m1_B, m2_A, m2_B))
-        rhot_square = np.abs(rho_sqrt_matrix @ t_matrix @ rho_sqrt_matrix) ** 2
-
+        rhot_square = self.get_rhot_square_abs(s_array, m1_A, m1_B, m2_A, m2_B)
         import matplotlib.pyplot as plt
 
         plt.plot(x, rhot_square[:, 0, 0], "bx", label="|T|^2")
