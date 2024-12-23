@@ -1,4 +1,4 @@
-from .base import Analyticity, ChewMadelstemForm, ScatteringMatrixForm
+from .base import Analyticity, ChewMadelstemABC, ScatteringMatrixABC
 import numpy as np
 import sympy as sp
 import cmath
@@ -12,7 +12,7 @@ class PoleEquationsSolver(Analyticity):
     def __init__(self):
         pass
 
-    def set_scattering_matrix(self, scattering_matrix: ScatteringMatrixForm):
+    def set_scattering_matrix(self, scattering_matrix: ScatteringMatrixABC):
         self.scattering_matrix = scattering_matrix
 
     def check_is_t_matrix_pole(self, s0, m1_A, m1_B, m2_A, m2_B):

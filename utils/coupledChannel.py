@@ -15,10 +15,10 @@ from tqdm import trange
 
 from time import perf_counter
 
-from .base import Analyticity, ChewMadelstemForm, ScatteringMatrixForm
+from .base import ScatteringMatrixABC, ScatteringCalculatorABC
 
 
-class ScatteringDoubleChannelCalculator(Analyticity):
+class DoubleChannelCalculator(ScatteringCalculatorABC):
     """
     A simple methods class to calculate scattering amplitude.
         - Only for double Channel.
@@ -168,7 +168,7 @@ class ScatteringDoubleChannelCalculator(Analyticity):
         ret -= 4 * np.pi * cut
         return ret / (self.Ls * np.pi)
 
-    def set_scattering_matrix(self, form: ScatteringMatrixForm):
+    def set_scattering_matrix(self, form: ScatteringMatrixABC):
         """
         setter of scattering matrix form.
         """

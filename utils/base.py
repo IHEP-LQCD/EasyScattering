@@ -76,7 +76,7 @@ class Analyticity:
         """
         k = self.scattering_mom(s, m_A, m_B).real
         return 2 * k / self.sqrt_vectorized(s)
-    
+
     def rho_heviside_matrix(self, s, m1_A, m1_B, m2_A, m2_B):
         """
         define rho(s) 2 by 2 matrix.
@@ -92,7 +92,7 @@ class Analyticity:
         return rho_heviside_matrix
 
 
-class ChewMadelstemForm(ABC):
+class ChewMadelstemABC(ABC):
     """
     ABC class for Chew-Madelstem matrix.
     """
@@ -114,13 +114,13 @@ class ChewMadelstemForm(ABC):
         plt.clf()
 
 
-class ScatteringMatrixForm(ABC, Analyticity):
+class ScatteringMatrixABC(ABC, Analyticity):
     """
     ABC class for scattering matrix form.
     Inherit this class to define your scattering matrix form of K matrix or K inv.
     """
 
-    def __init__(self, chew_madstem: ChewMadelstemForm):
+    def __init__(self, chew_madstem: ChewMadelstemABC):
         self.chew_madstem = chew_madstem
         self._p = None
 
@@ -205,7 +205,7 @@ class ScatteringMatrixForm(ABC, Analyticity):
             np.zeros_like(x),
         )
         for i, s in enumerate(S_matrix_array):
-            delta1[i], eta1[i], delta2[i], eta2[i] = ScatteringMatrixForm.get_phase_from_S_matrix(s)
+            delta1[i], eta1[i], delta2[i], eta2[i] = ScatteringMatrixABC.get_phase_from_S_matrix(s)
         # print(s)
         # exit()
         import matplotlib.pyplot as plt
@@ -233,3 +233,42 @@ class ScatteringMatrixForm(ABC, Analyticity):
         plt.legend()
         plt.show()
         plt.clf()
+
+
+class ScatteringCalculatorABC(ABC, Analyticity):
+    """
+    ABC class for scattering matrix calculator.
+    Inherit this class to define your scattering matrix calculator.
+    """
+
+    @abstractmethod
+    def __init__(self, Ls, Q, cut, at_inv_GeV):
+        self.Ls = Ls
+        self.Q = Q
+        self.cut = cut
+        self.at_inv_GeV = at_inv_GeV
+        self._scattering_matrix = None
+        self._resampling_energies = None
+        self._resampling_input = None
+
+    # @abstractmethod
+    # def set_scattering_matrix(self, scattering_matrix: ScatteringMatrixForm):
+    #     pass
+
+    # @abstractmethod
+    # def set_resampling_energies(self, energies, resampling_type="jackknife"):
+    #     if resampling_type == "jackknife":
+    #         self._resampling_energies = energies
+    #     else:
+    #         raise ValueError("resampling_type not supported.")
+    #     pass
+
+    @abstractmethod
+    def get_chi2(self, p, cov_debugging=None, verbose=False):
+        if self._scattering_matrix is None:
+            raise ValueError("scattering_matrix not set, please set_scattering_matrix(scattering_matrix) before.")
+        if self._resampling_energies is None:
+            raise ValueError("resampling_energies not set, please set_resampling_energies(energies) before.")
+        if self._resampling_input is None:
+            raise ValueError("resampling_input not set, please set_resampling_input(input) before.")
+        pass

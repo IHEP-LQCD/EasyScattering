@@ -1,4 +1,4 @@
-from utils import ScatteringDoubleChannelCalculator
+from utils import DoubleChannelCalculator
 from utils import ChewMadelstemZero, KMatraixSumOfPoles
 import numpy as np
 import gvar as gv
@@ -15,7 +15,7 @@ from time import perf_counter_ns
 
 
 def main():
-    calculator = ScatteringDoubleChannelCalculator(Ls=16, Q=np.ones(3) * 0.0, cut=30, at_inv_GeV=7.219)
+    calculator = DoubleChannelCalculator(Ls=16, Q=np.ones(3) * 0.0, cut=30, at_inv_GeV=7.219)
     at_inv = 7.219
     n_cfg = 401
 

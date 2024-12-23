@@ -1,8 +1,8 @@
 import numpy as np
-from .base import ScatteringMatrixForm
+from .base import ScatteringMatrixABC
 
 
-class KMatraixSumOfPoles(ScatteringMatrixForm):
+class KMatraixSumOfPoles(ScatteringMatrixABC):
     """
     __init__ method define by super class.
     """
@@ -33,7 +33,7 @@ class KMatraixSumOfPoles(ScatteringMatrixForm):
         return np.linalg.inv(self.get_K_matrix(s))
 
 
-class KMatraixSumOfPolesWOCoupling(ScatteringMatrixForm):
+class KMatraixSumOfPolesWOCoupling(ScatteringMatrixABC):
     """
     this class is used to test coupled channel without coupling.
     """
@@ -68,7 +68,7 @@ class KMatraixSumOfPolesWOCoupling(ScatteringMatrixForm):
         return np.linalg.inv(self.get_K_matrix(s))
 
 
-class KinvMatraixPolymomial(ScatteringMatrixForm):
+class KinvMatraixPolymomial(ScatteringMatrixABC):
     """
     __init__ method define by super class.
     """
@@ -108,7 +108,7 @@ class KinvMatraixPolymomial(ScatteringMatrixForm):
         return Kinv_matrix
 
 
-class KinvMatraixPolymomialSqrts(ScatteringMatrixForm):
+class KinvMatraixPolymomialSqrts(ScatteringMatrixABC):
     """
     __init__ method define by super class.
     """

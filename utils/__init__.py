@@ -1,4 +1,4 @@
-from .base import Analyticity, ScatteringMatrixForm, ChewMadelstemForm
+from .base import Analyticity, ScatteringMatrixABC, ChewMadelstemABC, ScatteringCalculatorABC
 from .scatteringMatrix import (
     KMatraixSumOfPoles,
     KinvMatraixPolymomial,
@@ -13,5 +13,5 @@ from .chewMadelteam import (
 )
 
 from .singleChannel import ScatteringSingleChannelCalculator
-from .coupledChannel import ScatteringDoubleChannelCalculator
+from .coupledChannel import DoubleChannelCalculator
 from .poleEquations import PoleEquationsSolver

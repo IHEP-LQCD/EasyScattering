@@ -1,15 +1,15 @@
 import numpy as np
 import cmath
-from .base import ChewMadelstemForm, Analyticity
+from .base import ChewMadelstemABC, Analyticity
 
-class ChewMadelstemZero(ChewMadelstemForm, Analyticity):
+class ChewMadelstemZero(ChewMadelstemABC, Analyticity):
     """
     A zero Chew-Madelstem variable.
     """
     def get_chew_madstem_matrix(self, s, m1_A, m1_B, m2_A, m2_B):
         return -1j * self.rho_matrix(s, m1_A, m1_B, m2_A, m2_B)
 
-class ChewMadelstemEqualMass(ChewMadelstemForm):
+class ChewMadelstemEqualMass(ChewMadelstemABC):
     """
     Chew-Madelstem for 2 equal mass.
     Ref: 10.1103/PhysRevD.88.014501
@@ -30,7 +30,7 @@ class ChewMadelstemEqualMass(ChewMadelstemForm):
         )
 
 
-class ChewMadelstemUnequalMass(ChewMadelstemForm):
+class ChewMadelstemUnequalMass(ChewMadelstemABC):
     """
     Chew-Madelstem for unequal mass m1, m2
     """
@@ -46,7 +46,7 @@ class ChewMadelstemUnequalMass(ChewMadelstemForm):
             )
         )
 
-class ChewMadelstemUnequalMass_2(ChewMadelstemForm):
+class ChewMadelstemUnequalMass_2(ChewMadelstemABC):
     """
     Chew-Madelstem for unequal mass m1, m2
     """

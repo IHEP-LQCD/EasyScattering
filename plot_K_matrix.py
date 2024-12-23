@@ -1,4 +1,3 @@
-from utils import ScatteringDoubleChannelCalculator
 from utils import ChewMadelstemZero, KMatraixSumOfPoles, KinvMatraixPolymomialSqrts
 import numpy as np
 import gvar as gv

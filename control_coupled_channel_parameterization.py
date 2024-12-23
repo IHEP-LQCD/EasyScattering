@@ -1,10 +1,10 @@
-from utils import ScatteringDoubleChannelCalculator
+from utils import DoubleChannelCalculator
 from utils import ChewMadelstemZero, KMatraixSumOfPoles
 import numpy as np
 
 
 def main():
-    calculator = ScatteringDoubleChannelCalculator(Ls=16, Q=np.ones(3) * 0.0, cut=30)
+    calculator = DoubleChannelCalculator(Ls=16, Q=np.ones(3) * 0.0, cut=30)
     at_inv = 6.894
 
     # calculator.plot_zeta_function(calculator.M0000)

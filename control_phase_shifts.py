@@ -1,11 +1,11 @@
-from utils import ScatteringDoubleChannelCalculator
+from utils import DoubleChannelCalculator
 from utils import ChewMadelstemZero, KMatraixSumOfPoles
 import numpy as np
 
 
 def main():
     at_inv = 7.219
-    calculator = ScatteringDoubleChannelCalculator(
+    calculator = DoubleChannelCalculator(
         Ls=16, Q=np.ones(3) * 0.0, cut=30, at_inv_GeV=7.219
     )
 
