@@ -7,7 +7,7 @@ import cmath
 # ABC
 class Analyticity:
     """
-    define some basic functions for scattering matrix analysis.
+    define some basic functions about analyticicy for scattering matrix analysis.
     """
 
     @staticmethod
@@ -243,13 +243,7 @@ class ScatteringCalculatorABC(ABC, Analyticity):
 
     @abstractmethod
     def __init__(self, Ls, Q, cut, at_inv_GeV):
-        self.Ls = Ls
-        self.Q = Q
-        self.cut = cut
-        self.at_inv_GeV = at_inv_GeV
-        self._scattering_matrix = None
-        self._resampling_energies = None
-        self._resampling_input = None
+        pass
 
     # @abstractmethod
     # def set_scattering_matrix(self, scattering_matrix: ScatteringMatrixForm):
@@ -257,18 +251,12 @@ class ScatteringCalculatorABC(ABC, Analyticity):
 
     # @abstractmethod
     # def set_resampling_energies(self, energies, resampling_type="jackknife"):
-    #     if resampling_type == "jackknife":
-    #         self._resampling_energies = energies
-    #     else:
-    #         raise ValueError("resampling_type not supported.")
     #     pass
 
     @abstractmethod
     def get_chi2(self, p, cov_debugging=None, verbose=False):
-        if self._scattering_matrix is None:
-            raise ValueError("scattering_matrix not set, please set_scattering_matrix(scattering_matrix) before.")
-        if self._resampling_energies is None:
-            raise ValueError("resampling_energies not set, please set_resampling_energies(energies) before.")
-        if self._resampling_input is None:
-            raise ValueError("resampling_input not set, please set_resampling_input(input) before.")
-        pass
+        raise NotImplementedError("Subclass must implement this method")
+
+    @abstractmethod
+    def get_chi2_resampling(self, p, cov_debugging=None, verbose=False):
+        raise NotImplementedError("Subclass must implement this method")

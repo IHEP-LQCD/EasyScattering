@@ -14,4 +14,5 @@ from .chewMadelteam import (
 
 from .singleChannel import ScatteringSingleChannelCalculator
 from .coupledChannel import DoubleChannelCalculator
+from .jointFit import JointDoubleChannelCalculator
 from .poleEquations import PoleEquationsSolver
