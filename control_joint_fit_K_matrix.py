@@ -67,7 +67,7 @@ def main():
         resampling_type="jackknife",
     )
 
-    calculator_joint = JointDoubleChannelCalculator(calculator_L16, calculator_L24)
+    calculator_joint = JointDoubleChannelCalculator([calculator_L16, calculator_L24])
 
     print("Start fit chi2")
     s = perf_counter_ns()

@@ -7,7 +7,6 @@ import numpy as np
 def main():
     at_inv = 7.219
 
-    pole_solver = PoleEquationsSolver()
 
     fac = 16 * np.pi # a factor due to the definition of t matrix basis
 
@@ -25,6 +24,7 @@ def main():
     m2_a = 1.896369299169502 / at_inv  # (0,1) are channels, (a,b) are particles
     m2_b = 2.017046814077588 / at_inv
 
+    pole_solver = PoleEquationsSolver()
     # Here KMatraixSumOfPolesWOCoupling is a test class for coupled channel without coupling.
     k_matrix_parameterization = KMatraixSumOfPolesWOCoupling(ChewMadelstemZero())
     k_matrix_parameterization.set_parameters(p)
