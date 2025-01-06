@@ -362,14 +362,15 @@ class DoubleChannelCalculator(ScatteringCalculatorABC):
                 energies_exp[ie] = energies_at_zeros[idx]
 
         chi2 = np.einsum("i, ij, j", energies_exp - energies_lat_mean, cov_inv, energies_exp - energies_lat_mean)
-        # print("return chi2 = ", chi2)
         if verbose:
-            print("E_exp: \t", energies_exp * self.at_inv_GeV)
+            print("E_exp:\t", "\t".join(f"{i:.9}" for i in energies_exp * self.at_inv_GeV))
             print(
-                "E_lat: \t",
-                gv.gvar(energies_lat.mean(axis=1), energies_lat.std(axis=1) * self.resampling_factor**0.5)
-                * self.at_inv_GeV,
+                "E_lat:\t",
+                "\t".join(f"{i}" for i in gv.gvar(energies_lat.mean(axis=1), energies_lat.std(axis=1) * self.resampling_factor**0.5) * self.at_inv_GeV
+                )
             )
+            tmp = np.einsum("i, ij, j -> ij", energies_exp - energies_lat_mean, cov_inv, energies_exp - energies_lat_mean)
+            print("r mag:\t", "\t".join(f"{100 * s:.5f}%" for s in [tmp[i].sum() / chi2 for i in range(n_levels)]))
         return chi2
 
     def get_chi2_resampling(self, p=None, cov_debugging=None, verbose=False):
@@ -438,11 +439,11 @@ class DoubleChannelCalculator(ScatteringCalculatorABC):
             )
             if len(energies_at_zeros_r) == 0:
                 energies_exp_r[:] = 0
+            if len(energies_at_zeros_r) == 0:
+                energies_exp_r[:] = 0
             else:
                 for ie in range(n_levels):
                     idx = np.argmin(np.abs(energies_lat_r[ie] - energies_at_zeros_r))
-                    energies_exp_r[ie] = energies_at_zeros_r[idx]
-            energies_exp_resampling[i_resamping] = energies_exp_r
 
         return chi2_resampling, parametrs_resampling, energies_exp_resampling
 

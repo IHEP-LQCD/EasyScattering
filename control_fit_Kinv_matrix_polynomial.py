@@ -63,7 +63,6 @@ def main():
         param_dict = dict(zip(p_keys, params))
         return calculator.get_chi2(param_dict, verbose=False)
 
-    print(chi2)
     para = list(p.values())
     best_chi2 = chi2
     best_para = para

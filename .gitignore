@@ -3,3 +3,6 @@ cache
 output
 *.npy
 *test*
+*DATA*
+*tmp*
+model*
