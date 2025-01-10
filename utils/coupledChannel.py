@@ -49,6 +49,7 @@ class DoubleChannelCalculator(ScatteringCalculatorABC):
         cut: int = 30,
         at_inv_GeV: float = 1.0,
         cache_file_dir: str = "./cache/",
+        name: str = "",
     ) -> None:
         self.Ls = Ls
         self.Q = Q
@@ -57,6 +58,7 @@ class DoubleChannelCalculator(ScatteringCalculatorABC):
         # gamma = 1.0 for rest frame
 
         self.gamma = gamma
+        self.name = name
 
         self.cut = cut if cut >= 30 else 30
         self.q2_begin = -9.0001
@@ -363,13 +365,19 @@ class DoubleChannelCalculator(ScatteringCalculatorABC):
 
         chi2 = np.einsum("i, ij, j", energies_exp - energies_lat_mean, cov_inv, energies_exp - energies_lat_mean)
         if verbose:
+            print(f"--------- {self.name} chi2 = {chi2:.4} ----------")
             print("E_exp:\t", "\t".join(f"{i:.9}" for i in energies_exp * self.at_inv_GeV))
             print(
                 "E_lat:\t",
-                "\t".join(f"{i}" for i in gv.gvar(energies_lat.mean(axis=1), energies_lat.std(axis=1) * self.resampling_factor**0.5) * self.at_inv_GeV
-                )
+                "\t".join(
+                    f"{i}"
+                    for i in gv.gvar(energies_lat.mean(axis=1), energies_lat.std(axis=1) * self.resampling_factor**0.5)
+                    * self.at_inv_GeV
+                ),
             )
-            tmp = np.einsum("i, ij, j -> ij", energies_exp - energies_lat_mean, cov_inv, energies_exp - energies_lat_mean)
+            tmp = np.einsum(
+                "i, ij, j -> ij", energies_exp - energies_lat_mean, cov_inv, energies_exp - energies_lat_mean
+            )
             print("r mag:\t", "\t".join(f"{100 * s:.5f}%" for s in [tmp[i].sum() / chi2 for i in range(n_levels)]))
         return chi2
 
