@@ -323,9 +323,6 @@ class DoubleChannelCalculator(ScatteringCalculatorABC):
             quantization_determint * np.roll(quantization_determint, -1) < 0
         )
         s_zeros = s[zeros_index]
-        end_time = perf_counter()
-        print(f"Time taken get zetos: {end_time - start_time:.6f} seconds")
-        # s_zeros = np.sort(s_zeros)
         if visiable:
             self.plot_zeros_search(s**0.5 * self.at_inv_GeV, quantization_determint, s_zeros**0.5 * self.at_inv_GeV)
             print(f"Find {s_zeros.shape} zeros: ", s_zeros)
