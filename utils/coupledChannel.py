@@ -50,7 +50,13 @@ class DoubleChannelCalculator(ScatteringCalculatorABC):
         at_inv_GeV: float = 1.0,
         cache_file_dir: str = "./cache/",
         name: str = "",
+        search_n_points: int = 2**10,
     ) -> None:
+        """
+        init method.
+            search_n_points: number of points to search zeros.
+                almost proprotional to cost of time.
+        """
         self.Ls = Ls
         self.Q = Q
         if list(Q) != [0, 0, 0]:
@@ -61,9 +67,11 @@ class DoubleChannelCalculator(ScatteringCalculatorABC):
         self.name = name
 
         self.cut = cut if cut >= 30 else 30
-        self.q2_begin = -9.0001
-        self.q2_end = 11.0001
-        self.q2_density = 2**18  # 262144
+        self.q2_begin = -10
+        self.q2_end = 11
+        # self.q2_interp1d_density = 2**18  # 262144
+        self.q2_interp1d_density = 2**14  # interp1d density in each q2 interval.
+        self._solve_zeros_n_point = search_n_points
         self.cache_file_dir = cache_file_dir
         if not os.path.exists(cache_file_dir):
             os.makedirs(cache_file_dir)
@@ -130,12 +138,46 @@ class DoubleChannelCalculator(ScatteringCalculatorABC):
         else:
             raise ValueError("xi should be set.")
 
-    def init_kM0000_cache(self):
-        cache_file_name = (
-            f"{self.cache_file_dir}/cache_{self.q2_begin}_{self.q2_end}_{self.q2_density}_{self.cut}_L{self.Ls}.npy"
+        # solve zeros resolution
+        _s0_zeros_prior = np.mean(self.resampling_energies, axis=1) ** 2
+        _solve_zeros_lower = _s0_zeros_prior[0] - 0.01
+        _solve_zeros_upper = _s0_zeros_prior[-1] + 0.01
+
+        focus_on_list = [_solve_zeros_lower, _solve_zeros_upper]
+        for i in range(self.n_levels):
+            e1 = (self.m1_A_mean**2 + i * (2 * np.pi / self.Ls / self.xi1_mean) ** 2) ** 0.5 + (
+                self.m1_B_mean**2 + i * (2 * np.pi / self.Ls / self.xi1_mean) ** 2
+            ) ** 0.5
+            e2 = (self.m2_A_mean**2 + i * (2 * np.pi / self.Ls / self.xi2_mean) ** 2) ** 0.5 + (
+                self.m2_B_mean**2 + i * (2 * np.pi / self.Ls / self.xi2_mean) ** 2
+            ) ** 0.5
+            focus_on_list.append(e1**2)
+            focus_on_list.append(e2**2)
+        focus_on_list = np.sort(focus_on_list)
+        print(f"focus on energy on {self.name}\n", np.sort([i**0.5 * self.at_inv_GeV for i in focus_on_list]))
+
+        _n_point = self._solve_zeros_n_point
+        # weight = 2**8 / (2**4)
+        # self._solve_zeros_interval = (_solve_zeros_upper - _solve_zeros_lower) / _n_point
+        # self._solve_zeros_s_linspace = np.linspace(_solve_zeros_lower, _solve_zeros_upper, _n_point)
+        self._solve_zeros_s_linspace = np.concatenate(
+            [np.linspace(focus_on_list[i], focus_on_list[i + 1], _n_point) for i in range(len(focus_on_list) - 1)]
         )
+
+    def init_kM0000_cache(self):
+        cache_file_name = f"{self.cache_file_dir}/cache_{self.q2_begin}_{self.q2_end}_{self.q2_interp1d_density}_{self.cut}_L{self.Ls}.npy"
         s = perf_counter()
-        self.zeta_x = np.linspace(self.q2_begin, self.q2_end, self.q2_density, dtype="f8")
+        _density = self.q2_interp1d_density
+        weight = _density / (2**4)
+        interp1d_int = np.concatenate(
+            [
+                np.exp(-np.arange(_density, 0, -1) / weight) / 2,
+                (2 - np.exp(-np.arange(1, _density + 1, 1) / weight)) / 2,
+            ],
+            dtype="f8",
+        )
+        self.zeta_x = np.concatenate([interp1d_int + i for i in range(self.q2_begin, self.q2_end)], dtype="f8")
+        # self.zeta_x = np.linspace(self.q2_begin, self.q2_end, self.q2_interp1d_density, dtype="f8")
         if os.path.exists(cache_file_name):
             self.zeta_y = np.load(cache_file_name)
         else:
@@ -198,14 +240,6 @@ class DoubleChannelCalculator(ScatteringCalculatorABC):
         print(f"init resampling_energies: n_levels = {self.n_levels}, n_resampling = {self.n_resampling}.")
         print("energy mean: ", sorted_data.mean(axis=1))
 
-        # solve zeros resolution
-        _s0_zeros_prior = np.mean(self.resampling_energies, axis=1) ** 2
-        _solve_zeros_upper = _s0_zeros_prior[0] - 0.01
-        _solve_zeros_lower = _s0_zeros_prior[-1] + 0.01
-        _n_point = 2**14
-        self._solve_zeros_interval = (_solve_zeros_upper - _solve_zeros_lower) / _n_point
-        self._solve_zeros_s_linspace = np.linspace(_solve_zeros_lower, _solve_zeros_upper, _n_point)
-
         # save the covariance matrix of resampling data.
         # dataset = gv.dataset.avg_data(energies_lat.transpose((1, 0)))
         # cov = gv.evalcov(dataset)
@@ -222,6 +256,7 @@ class DoubleChannelCalculator(ScatteringCalculatorABC):
         self.resampling_factor = resampling_factor
         self.cov = cov
         self.cov_inv = np.linalg.inv(cov)
+        print(f"---- {self.name} cov_inv ---- \n", self.cov_inv)
 
     def get_quantization_determinant(self, s, m1_A, m1_B, m2_A, m2_B, xi1, xi2):
         """
@@ -272,30 +307,25 @@ class DoubleChannelCalculator(ScatteringCalculatorABC):
         for zero in zeros:
             plt.axvline(x=zero, color="r", linestyle="--")
         plt.plot(x, np.zeros_like(x), "-k")
-        plt.ylim(-0.5, 0.5)
+        plt.ylim(-5, 5)
         plt.show()
         plt.clf()
 
     def get_quantization_determinant_zeros(self, visiable=False):
         s = self._solve_zeros_s_linspace
         m1_A, m1_B, m2_A, m2_B = self.m1_A_mean, self.m1_B_mean, self.m2_A_mean, self.m2_B_mean
+
+        start_time = perf_counter()
         quantization_determint = self.get_quantization_determinant(
             s, m1_A, m1_B, m2_A, m2_B, xi1=self.xi1_mean, xi2=self.xi2_mean
         )
-        zeros_index = quantization_determint**2 < 1e-4
-        zeros_condidate = s[zeros_index]
-        det_condidate = quantization_determint[zeros_index]
-        s_zeros = []
-        for idx in range(len(zeros_condidate)):
-            # if the zeros condidates are too close, only keep one.
-            # the factor 25 is a empirical value, that is 5 * energy interval.
-            if (
-                (zeros_condidate[idx] - zeros_condidate[(idx + 1) % len(zeros_condidate)]) ** 2
-                < 25 * self._solve_zeros_interval**2
-            ) and (det_condidate[idx] * det_condidate[(idx + 1) % len(zeros_condidate)] < 0):
-                s_zeros.append(zeros_condidate[idx])
-        s_zeros = np.sort(s_zeros)
-
+        zeros_index = (quantization_determint**2 < 1e-3) & (
+            quantization_determint * np.roll(quantization_determint, -1) < 0
+        )
+        s_zeros = s[zeros_index]
+        end_time = perf_counter()
+        print(f"Time taken get zetos: {end_time - start_time:.6f} seconds")
+        # s_zeros = np.sort(s_zeros)
         if visiable:
             self.plot_zeros_search(s**0.5 * self.at_inv_GeV, quantization_determint, s_zeros**0.5 * self.at_inv_GeV)
             print(f"Find {s_zeros.shape} zeros: ", s_zeros)
@@ -314,19 +344,10 @@ class DoubleChannelCalculator(ScatteringCalculatorABC):
         quantization_determint = self.get_quantization_determinant(
             s, m1_A, m1_B, m2_A, m2_B, xi1=self.xi1_resampling[i_resampling], xi2=self.xi2_resampling[i_resampling]
         )
-        zeros_index = quantization_determint**2 < 1e-4
-        zeros_condidate = s[zeros_index]
-        det_condidate = quantization_determint[zeros_index]
-        s_zeros = []
-        for idx in range(len(zeros_condidate)):
-            # if the zeros condidates are too close, only keep one.
-            # the factor 25 is a empirical value, that is 5 * energy interval.
-            if (
-                (zeros_condidate[idx] - zeros_condidate[(idx + 1) % len(zeros_condidate)]) ** 2
-                < 25 * self._solve_zeros_interval**2
-            ) and (det_condidate[idx] * det_condidate[(idx + 1) % len(zeros_condidate)] < 0):
-                s_zeros.append(zeros_condidate[idx])
-        s_zeros = np.sort(s_zeros)
+        zeros_index = (quantization_determint**2 < 1e-3) & (
+            quantization_determint * np.roll(quantization_determint, -1) < 0
+        )
+        s_zeros = s[zeros_index]
 
         if visiable:
             self.plot_zeros_search(s**0.5 * self.at_inv_GeV, quantization_determint, s_zeros**0.5 * self.at_inv_GeV)
@@ -334,7 +355,7 @@ class DoubleChannelCalculator(ScatteringCalculatorABC):
 
         return s_zeros**0.5
 
-    def get_chi2(self, p=None, cov_debugging=None, verbose=False):
+    def get_chi2(self, p=None, cov_debugging=None, is_nearest_zeros=True, verbose=False):
         """
         get chi2 between the expected energy levels from the K matrix parameterization.
             cov_debugging: covariance matrix for debugging, not recommended for real fit.
@@ -356,12 +377,24 @@ class DoubleChannelCalculator(ScatteringCalculatorABC):
 
         energies_lat_mean = np.mean(energies_lat, axis=1)
         energies_exp = np.zeros(n_levels)
-        if len(energies_at_zeros) == 0:
-            energies_exp = 0
+        if is_nearest_zeros:
+            if len(energies_at_zeros) == 0:
+                energies_exp[:] = 0
+            else:
+                if len(energies_at_zeros) < n_levels:
+                    self.get_quantization_determinant_zeros(visiable=True)
+                    raise ValueError(f"zeros number {len(energies_at_zeros)} is less than n_levels {n_levels}.")
+                for ie in range(n_levels):
+                    idx = np.argmin(np.abs(energies_lat_mean[ie] - energies_at_zeros))
+                    energies_exp[ie] = energies_at_zeros[idx]
+                # for ie in range(len(energies_at_zeros)):
+                #
         else:
-            for ie in range(n_levels):
-                idx = np.argmin(np.abs(energies_lat_mean[ie] - energies_at_zeros))
-                energies_exp[ie] = energies_at_zeros[idx]
+            if len(energies_at_zeros) < n_levels:
+                self.get_quantization_determinant_zeros(visiable=True)
+                raise ValueError(f"zeros number {len(energies_at_zeros)} is less than n_levels {n_levels}.")
+            energies_exp[:] = energies_at_zeros[:n_levels]
+            print(energies_exp.shape, energies_lat_mean.shape, n_levels)
 
         chi2 = np.einsum("i, ij, j", energies_exp - energies_lat_mean, cov_inv, energies_exp - energies_lat_mean)
         if verbose:
